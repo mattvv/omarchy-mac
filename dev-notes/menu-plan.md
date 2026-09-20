@@ -97,11 +97,20 @@ Shutdown works is a test you run once.
 
 ## P5 — setup  (upstream: 66 entries)
 
-- [ ] `setup.monitors` → `displayplacer` arrangement
-- [ ] `setup.keybindings` → open `~/.aerospace.toml` in the editor
-- [ ] `setup.input` → key repeat, trackpad speed via `defaults`
-- [ ] `setup.network.dns` → `networksetup -setdnsservers` (DHCP/Cloudflare/Google/custom)
-- [ ] `setup.default.browser` → `duti` or the modern `open -a` default-handler API
+- [x] `setup.monitors` → opens the Displays pane. `displayplacer` can *restore* a
+      saved arrangement but cannot present one to choose, and this Mac has one
+      display to test against.
+- [x] `setup.keybindings` → opens `~/.aerospace.toml`; `setup.config.*` opens the
+      Ghostty, bar and menu configs
+- [x] `setup.input` / `setup.trackpad` → the Keyboard and Trackpad panes. Writing
+      these with `defaults` needs a logout to take effect and silently disagrees
+      with the UI until then; opening the pane is the honest equivalent.
+- [x] `setup.dns` → DHCP / Cloudflare / Google / Quad9 via `networksetup`, applied to
+      whichever service currently carries the default route, with a ✓ on the one in
+      use. Verified by round-trip: Google → Cloudflare → read back → restored.
+- [ ] `setup.default.browser` → no supported CLI. `duti` is unmaintained and the
+      replacement API is private. Needs a decision: ship the dependency or open the
+      pane.
 - [ ] `setup.default.terminal|editor|agent` → our own state, used by the app bindings
 
 ## P6 — install / remove  (upstream: 155 entries, mostly pacman)

@@ -16,6 +16,7 @@
   // ── Root ──────────────────────────────────────────────────────────────────
   "style":  {"icon":"", "label":"Style",  "aliases":["appearance"]},
   "trigger":{"icon":"󱓞", "label":"Trigger", "aliases":["capture","screenshot"]},
+  "setup":  {"icon":"", "label":"Setup", "aliases":["settings","config"]},
   "learn":  {"icon":"󰧑", "label":"Learn"},
   "system": {"icon":"", "label":"System", "aliases":["power"]},
 
@@ -47,6 +48,39 @@
   "trigger.stay-awake": {"icon":"󰅶", "label":"Stay awake", "aliases":["caffeinate","insomnia"],
                          "checked":"$OMARCHY_BIN/stay_awake.sh status",
                          "action":"$OMARCHY_BIN/stay_awake.sh toggle"},
+
+  // ── Setup ─────────────────────────────────────────────────────────────────
+  // Upstream scripts these outright because Linux lets it. macOS puts most of
+  // them behind System Settings with no supported CLI, so the honest
+  // equivalent is to open the exact pane rather than pretend to set it.
+  "setup.keybindings": {"icon":"", "label":"Edit keybindings", "aliases":["aerospace","config"],
+                        "action":"open -t \"$HOME/.aerospace.toml\""},
+  "setup.config":      {"icon":"", "label":"Edit config"},
+  "setup.config.ghostty":    {"icon":"", "label":"Ghostty",
+                        "action":"open -t \"$HOME/.config/ghostty/config\""},
+  "setup.config.sketchybar": {"icon":"󰍜", "label":"Bar",
+                        "action":"open -t \"$HOME/.config/sketchybar/sketchybarrc\""},
+  "setup.config.menu":       {"icon":"", "label":"This menu",
+                        "action":"open -t \"$HOME/.local/share/omarchy-mac/menu.jsonc\""},
+  "setup.monitors":    {"icon":"󰍹", "label":"Displays", "aliases":["monitor","screen"],
+                        "action":"open x-apple.systempreferences:com.apple.Displays-Settings.extension"},
+  "setup.input":       {"icon":"", "label":"Keyboard", "aliases":["input","repeat"],
+                        "action":"open x-apple.systempreferences:com.apple.Keyboard-Settings.extension"},
+  "setup.trackpad":    {"icon":"󰟸", "label":"Trackpad",
+                        "action":"open x-apple.systempreferences:com.apple.Trackpad-Settings.extension"},
+  "setup.dns":         {"icon":"󰖟", "label":"DNS", "aliases":["network","resolver"]},
+  "setup.dns.dhcp":       {"icon":"󰑓", "label":"DHCP (automatic)",
+                        "checked":"$OMARCHY_BIN/dns.sh status | grep -q DHCP",
+                        "action":"$OMARCHY_BIN/dns.sh dhcp"},
+  "setup.dns.cloudflare": {"icon":"󰅟", "label":"Cloudflare  1.1.1.1",
+                        "checked":"$OMARCHY_BIN/dns.sh status | grep -q 1.1.1.1",
+                        "action":"$OMARCHY_BIN/dns.sh cloudflare"},
+  "setup.dns.google":     {"icon":"󰊭", "label":"Google  8.8.8.8",
+                        "checked":"$OMARCHY_BIN/dns.sh status | grep -q 8.8.8.8",
+                        "action":"$OMARCHY_BIN/dns.sh google"},
+  "setup.dns.quad9":      {"icon":"󰒃", "label":"Quad9  9.9.9.9",
+                        "checked":"$OMARCHY_BIN/dns.sh status | grep -q 9.9.9.9",
+                        "action":"$OMARCHY_BIN/dns.sh quad9"},
 
   // ── Learn ─────────────────────────────────────────────────────────────────
   "learn.keybindings": {"icon":"", "label":"Keybindings", "aliases":["keys","bindings"],

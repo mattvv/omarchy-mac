@@ -20,10 +20,12 @@ ws_before="${OMARCHY_WORKSPACE:-}"
   ws_before=$("$AEROSPACE" list-workspaces --focused </dev/null 2>/dev/null)
 export OMARCHY_WORKSPACE="$ws_before"
 
+# One immediate check is not enough: AeroSpace's focus-follow can land after we
+# have already looked and come back. theme.py's helper retries on a schedule and
+# detaches, so it outlives this script.
 restore_workspace() {
   [ -n "$ws_before" ] || return 0
-  ws_now=$("$AEROSPACE" list-workspaces --focused </dev/null 2>/dev/null)
-  [ "$ws_now" = "$ws_before" ] || "$AEROSPACE" workspace "$ws_before" </dev/null 2>/dev/null
+  (python3 "$BIN/theme.py" _keep-workspace "$ws_before" >/dev/null 2>&1 &)
 }
 
 # Picker chrome is drawn in the theme you are currently wearing.

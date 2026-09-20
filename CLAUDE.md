@@ -113,6 +113,17 @@ Each of these cost real time to diagnose. Don't repeat them.
   terminal and fails from every button. Reproduce it with
   `env -i HOME="$HOME" PATH=/usr/bin:/bin /bin/bash <script>`, and resolve `sketchybar`,
   `borders`, `pgrep` and `osascript` through `tool()` rather than naming them bare.
+- **Read the workspace before Raycast dismisses, and check more than once.** Raycast closes
+  its window the instant it launches a script command, and that hands focus to an app on
+  another workspace — so a reading taken a few hundred milliseconds later already says "1",
+  and restoring to it is faithful to the wrong answer. The generated Raycast commands read
+  it on their first line and export `OMARCHY_WORKSPACE`; everything downstream prefers that
+  over its own later look. A single check afterwards is also not enough: AeroSpace's follow
+  can land *after* you have looked and returned, so `theme.py _keep-workspace` retries at
+  0 s, 0.9 s and 1.6 s, detached so it outlives the script.
+- **`_keep-workspace` must ask AeroSpace directly, never through `focused_workspace()`.**
+  It inherits `OMARCHY_WORKSPACE` from its parent, so preferring that value makes it
+  compare the target against itself and decide there is nothing to do — silently.
 - **The workspace guard belongs in `theme.py`, not only in the wrappers.** Raycast's
   dropdown command calls `theme.py set` directly and never touches `theme_menu.sh`, so a
   guard that lives only in the shell covers the pickers and misses the launcher.

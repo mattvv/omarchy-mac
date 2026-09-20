@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
+source "$HOME/.config/sketchybar/theme.sh" 2>/dev/null
 # Omarchy-style workspace list: only draw workspaces that hold a window, plus
 # the focused one (so an empty workspace you just switched to is still visible).
 # One aerospace round-trip, one sketchybar round-trip, for all 10 items.
-FG=0xffcacccc
-MUTED=0xff4b4e55
-SEL=0xff343d41
+FG=${FG:-0xffcacccc}
+MUTED=${MUTED:-0xff4b4e55}
+SEL=${SEL:-0xff343d41}
 AEROSPACE=/opt/homebrew/bin/aerospace
 
 focused="${FOCUSED_WORKSPACE:-$($AEROSPACE list-workspaces --focused </dev/null 2>/dev/null)}"

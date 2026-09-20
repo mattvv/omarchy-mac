@@ -35,7 +35,15 @@ for f in "$REPO"/config/sketchybar/plugins/*; do
 done
 chmod +x "$HOME"/.config/sketchybar/plugins-omarchy/*
 
-say "Wallpapers"
+say "Installing theme switcher"
+mkdir -p "$HOME/.local/bin" "$HOME/.local/share/omarchy-mac"
+cp "$REPO/bin/theme.py" "$REPO/bin/theme_menu.sh" "$HOME/.local/bin/"
+chmod +x "$HOME/.local/bin/theme.py" "$HOME/.local/bin/theme_menu.sh"
+rm -rf "$HOME/.local/share/omarchy-mac/themes"
+cp -R "$REPO/themes" "$HOME/.local/share/omarchy-mac/themes"
+python3 "$HOME/.local/bin/theme.py" set "${OMARCHY_THEME:-solitude}" >/dev/null 2>&1 || true
+
+say "Wallpapers (fallback)"
 mkdir -p "$HOME/Pictures/omarchy-solitude"
 if [ -z "$(ls -A "$HOME/Pictures/omarchy-solitude" 2>/dev/null)" ]; then
   OM="https://raw.githubusercontent.com/basecamp/omarchy/master/themes/solitude/backgrounds"

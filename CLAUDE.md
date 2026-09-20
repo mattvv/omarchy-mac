@@ -70,6 +70,14 @@ Each of these cost real time to diagnose. Don't repeat them.
 - **Setting a popup row's label later doesn't resize the popup.** Fixed `label.width` is
   required or text clips.
 
+- **Notch placement is `q`/`e`, not `notch_width`.** Those are real sketchybar positions
+  (left-of-notch / right-of-notch). `notch_width` is inert and `notch_display_height`
+  blanks the bar — do not reach for them.
+- **Never `pkill sketchybar` to apply a change.** It races the lock file and leaves the
+  stale instance running. Use `sketchybar --reload`.
+- **A theme switch must also set macOS appearance** (`System Events` → `appearance
+  preferences` → `dark mode`). Config files alone leave browsers and native apps wrong.
+
 ## Design decisions to preserve
 
 - **Omarchy's SUPER maps to ⌥, never ⌘.** ⌘ would clobber ⌘W/T/F/S/L/1-9 system-wide.

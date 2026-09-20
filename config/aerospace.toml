@@ -116,6 +116,9 @@ automatically-unhide-macos-hidden-apps = true
     alt-slash      = 'exec-and-forget /usr/bin/python3 __HOME__/.config/sketchybar/plugins-omarchy/display.py up'
     alt-ctrl-slash = 'exec-and-forget /usr/bin/python3 __HOME__/.config/sketchybar/plugins-omarchy/display.py down'
 
+    # Theme menu — Omarchy SUPER+SHIFT+CTRL+SPACE
+    alt-ctrl-shift-space = 'exec-and-forget __HOME__/.local/bin/theme_menu.sh'
+
     # Modes
     alt-r               = 'mode resize'
     alt-shift-semicolon = 'mode service'

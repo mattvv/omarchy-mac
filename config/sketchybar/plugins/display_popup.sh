@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$HOME/.config/sketchybar/theme.sh" 2>/dev/null
 PLUG="$HOME/.config/sketchybar/plugins-omarchy"
 "$PLUG/popup_close.sh"
 python3 - "$PLUG" <<'PY'
@@ -6,7 +7,10 @@ import sys, json, subprocess
 plug = sys.argv[1]
 d = json.loads(subprocess.run(["python3", plug+"/display.py"],
                               capture_output=True, text=True).stdout or "{}")
-HEAD, BODY, ACC = "0xff4b4e55", "0xffcacccc", "0xff798186"
+import os
+HEAD = os.environ.get("MUTED",  "0xff4b4e55")
+BODY = os.environ.get("FG",     "0xffcacccc")
+ACC  = os.environ.get("ACCENT", "0xff798186")
 
 rows = [("DISPLAYS", HEAD, None), ("  ● MacBook built-in", BODY, None),
         ("SCALE", HEAD, None)]

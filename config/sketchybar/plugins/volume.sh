@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
+source "$HOME/.config/sketchybar/theme.sh" 2>/dev/null
 
 # Close this item's popup when the pointer leaves the bar.
 if [ "$SENDER" = "mouse.exited.global" ] || [ "$SENDER" = "mouse.exited" ]; then
   sketchybar --set "$NAME" popup.drawing=off
   exit 0
 fi
-ACCENT=0xff798186
-MUTED=0xff4b4e55
+ACCENT=${ACCENT:-0xff798186}
+MUTED=${MUTED:-0xff4b4e55}
 VOL="${INFO:-$(osascript -e 'output volume of (get volume settings)' 2>/dev/null)}"
 MUTE=$(osascript -e 'output muted of (get volume settings)' 2>/dev/null)
 case "$VOL" in ''|*[!0-9]*) VOL=0 ;; esac

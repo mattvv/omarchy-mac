@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
+source "$HOME/.config/sketchybar/theme.sh" 2>/dev/null
 
 # Close this item's popup when the pointer leaves the bar.
 if [ "$SENDER" = "mouse.exited.global" ] || [ "$SENDER" = "mouse.exited" ]; then
   sketchybar --set "$NAME" popup.drawing=off
   exit 0
 fi
-FG=0xffcacccc
-ACCENT=0xff798186
-WARN=0xffde6145
-
+FG=${FG:-0xffcacccc}
+ACCENT=${ACCENT:-0xff798186}
+WARN=${WARN:-0xffde6145}
 PCT=$(pmset -g batt | grep -Eo '[0-9]+%' | tr -d '%' | head -1)
 CHARGING=$(pmset -g batt | grep 'AC Power')
 

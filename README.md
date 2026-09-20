@@ -122,6 +122,34 @@ Swap themes by lifting `colors.toml` from any
 [Omarchy theme](https://github.com/basecamp/omarchy/tree/master/themes) into
 `sketchybarrc`, `ghostty/config` and the plugin scripts.
 
+## Themes
+
+All 22 [Omarchy themes](https://github.com/basecamp/omarchy/tree/master/themes) are
+vendored as palettes under `themes/`, including the light ones.
+
+```sh
+theme.py list              # names + mode
+theme.py set tokyo-night   # apply
+theme.py current
+```
+
+Or click the palette icon in the bar — a picker where each row is drawn in that theme's
+own accent and background, so you see it before you pick it. Also on `⌥⌃⇧Space`
+(Omarchy's `SUPER+SHIFT+CTRL+SPACE`).
+
+Nothing rewrites your app configs. Like Omarchy's `~/.local/state/omarchy/current/theme/`,
+a switch regenerates three files that the configs *include*:
+
+| Generated | Consumed by |
+|---|---|
+| `~/.config/sketchybar/theme.sh` | `sketchybarrc` and every plugin, via `source` |
+| `~/.config/ghostty/theme.conf` | `config-file = ?"…"` |
+| `~/.config/wezterm-theme.lua` | `dofile`, applied *after* the bar plugin |
+
+A switch also sets **macOS light/dark appearance** from the theme's `mode`. This matters
+more than the config files: browsers, Finder and native apps follow the system appearance,
+not anything we generate. Without it a light theme leaves half the desktop dark.
+
 ## Notes and honest limitations
 
 Things that do **not** work the way you'd expect on macOS, each verified the hard way:
@@ -133,15 +161,25 @@ Things that do **not** work the way you'd expect on macOS, each verified the har
   `-536870201`; ioreg's `IODisplayParameters."brightness"` is pinned at exactly
   `32768/65536` (always reports 50%); `"rawBrightness"` never moves. Only
   `DisplayServicesGet/SetBrightness` works — called via ctypes, no compilation.
-- **sketchybar's notch properties don't work.** `notch_width` alone does nothing, and
-  adding `notch_display_height` blanks the bar entirely. Nothing is placed in the bar's
-  centre as a result.
+- **Use sketchybar's `q`/`e` positions for the notch, not `notch_width`.** `q` places an
+  item immediately left of the notch and `e` immediately right — both are legal positions
+  (a bogus one errors with `Illegal position`). The `notch_width` property does nothing on
+  its own, and adding `notch_display_height` blanks the bar entirely. Nothing sits in the
+  bar's `center`.
 - **Popup rows need a fixed `label.width`.** sketchybar sizes a popup when its items are
   *created*; rows filled in later don't re-measure, so long labels clip.
 - **Wi-Fi SSID is not shown.** macOS returns the literal string `<redacted>` from
   `ipconfig getsummary` without Location Services permission, so the item is icon-only.
 - **No `ghostty +new-window` on macOS** ("not supported on this platform"), and
   `open -na Ghostty` spawns a second app instance. Hence Ghostty's own global hotkey.
+- **Reload sketchybar, never kill-and-respawn it.** `pkill` + relaunch races its lock
+  file: the replacement bails with `could not acquire lock-file` and the old instance
+  survives, leaving the bar a theme behind. `sketchybar --reload` re-executes the config
+  in place.
+- **Terminals read config at startup.** A theme switch does not repaint open windows.
+  WezTerm watches its main config (but not `dofile`d files, so the main file is touched);
+  Ghostty has no reload CLI and binds `reload_config` to `⌘⇧,`, driven via System Events —
+  which needs an Automation grant and so may no-op when triggered from a bar click.
 - **`sketchybar --query` can't see** `background`, `drawing` on popup items, or
   `notch_width` — don't trust it to verify those.
 

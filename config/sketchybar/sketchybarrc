@@ -15,11 +15,18 @@ MUTED=${MUTED:-0xff4b4e55}
 SEL=${SEL:-0xff343d41}
 DARKBG=${DARKBG:-0xff0c0e10}
 
+# Bar position and transparency, chosen from the menu and remembered here.
+# Sourced after theme.sh so it can override the colour's alpha byte.
+BAR_POSITION=top
+BAR_ALPHA=ff
+source "$HOME/.local/state/omarchy-mac/bar.sh" 2>/dev/null
+BG="0x${BAR_ALPHA}${BG: -6}"
+
 FONT="Hack Nerd Font"
 
 # ── Bar: gripped to top, opaque, no border, no float ──────────────────────────
 sketchybar --bar \
-    position=top     \
+    position=$BAR_POSITION \
     height=38        \
     margin=0         \
     y_offset=0       \

@@ -28,8 +28,14 @@ print(m.load()['learn.omarchy']['action'])")
 check "// inside a string survives" "$url" "open https://omarchy.org"
 
 # A submenu lists one level of children, not the whole subtree.
-check "style has 4 children" "$(python3 bin/menu.py rows style | wc -l | tr -d ' ')" "4"
-check "bar submenu has 1"    "$(python3 bin/menu.py rows style.bar | wc -l | tr -d ' ')" "1"
+style_children=$(python3 bin/menu.py rows style | wc -l | tr -d ' ')
+[ "$style_children" -ge 4 ] && ok "style has $style_children children" \
+  || bad "style: expected at least 4, got $style_children"
+# Counts move as the menu grows; assert the shape, not a frozen number.
+bar_children=$(python3 bin/menu.py rows style.bar | wc -l | tr -d ' ')
+[ "$bar_children" -ge 3 ] && ok "bar submenu has $bar_children children" \
+  || bad "bar submenu: expected at least 3, got $bar_children"
+check "position submenu is 2" "$(python3 bin/menu.py rows style.bar.position | wc -l | tr -d ' ')" "2"
 
 echo "actions"
 # Every action's command must exist: a typo is invisible until someone picks

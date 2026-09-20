@@ -45,9 +45,11 @@ has no honest macOS equivalent. Each item below says what we build, or why we do
 - [x] `style.theme` → existing theme picker, reached from the menu
 - [x] `style.background` → existing background picker, plus Next Background
 - [ ] `style.font` → pick a terminal font, write to Ghostty + WezTerm theme files
-- [ ] `style.bar.position` → sketchybar `position=top|bottom`; left/right N/A (sketchybar
-      is horizontal only — say so rather than faking it)
-- [ ] `style.bar.transparency` → bar colour alpha
+- [x] `style.bar.position` → top / bottom, applied live and remembered across reloads.
+      Left and right are absent: sketchybar is a horizontal bar, and a row that turns it
+      sideways would be a row that does nothing.
+- [x] `style.bar.transparency` → solid / translucent / transparent, swapping the alpha
+      byte of whatever colour the current theme set
 - [ ] `style.about` / `style.screensaver` → macOS screen saver module + text
 
 ## P2 — system  (upstream: 7 entries, all map)

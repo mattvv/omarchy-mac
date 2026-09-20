@@ -13,8 +13,12 @@ PICKER="$HOME/.local/share/omarchy-mac/OmarchyPicker.app/Contents/MacOS/omarchy-
 # (Absolute fallback: a script launched from Raycast or the bar does not get
 # your shell's PATH.)
 AEROSPACE=$(command -v aerospace || echo /opt/homebrew/bin/aerospace)
-ws_before=""
-[ -x "$AEROSPACE" ] && ws_before=$("$AEROSPACE" list-workspaces --focused </dev/null 2>/dev/null)
+# A launcher that ran before us read this earlier than we can -- see the
+# generated Raycast commands. Its answer is the trustworthy one.
+ws_before="${OMARCHY_WORKSPACE:-}"
+[ -z "$ws_before" ] && [ -x "$AEROSPACE" ] && \
+  ws_before=$("$AEROSPACE" list-workspaces --focused </dev/null 2>/dev/null)
+export OMARCHY_WORKSPACE="$ws_before"
 
 restore_workspace() {
   [ -n "$ws_before" ] || return 0

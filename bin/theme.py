@@ -101,7 +101,10 @@ def aerospace(*args: str) -> str:
 
 
 def focused_workspace() -> str:
-    return aerospace("list-workspaces", "--focused")
+    """OMARCHY_WORKSPACE is set by whoever launched us, and it was read earlier
+    than we can read it -- before a Raycast dismissal or a picker had a chance
+    to move focus. Prefer it."""
+    return os.environ.get("OMARCHY_WORKSPACE") or aerospace("list-workspaces", "--focused")
 
 
 def keep_workspace(ws: str):
@@ -484,7 +487,15 @@ RAYCAST_HEADER = """#!/usr/bin/env bash
 # @raycast.packageName Omarchy
 # @raycast.icon %(icon)s
 # @raycast.description %(description)s
-%(argument)s"""
+%(argument)s
+# Read the workspace before anything else. Raycast dismisses its own window the
+# moment it launches this script, and that dismissal hands focus to an app on
+# another workspace -- so a read taken even a few hundred milliseconds later
+# already says "1" and every later attempt to put you back is faithful to the
+# wrong answer.
+AEROSPACE=$(command -v aerospace || echo /opt/homebrew/bin/aerospace)
+[ -x "$AEROSPACE" ] && export OMARCHY_WORKSPACE=$("$AEROSPACE" list-workspaces --focused </dev/null 2>/dev/null)
+"""
 
 
 def write_raycast(dest: Path | None = None) -> Path:
@@ -551,10 +562,15 @@ if __name__ == "__main__":
     elif cmd == "raycast":
         print(write_raycast(Path(argv[1]) if len(argv) > 1 else None))
     elif cmd == "_keep-workspace" and len(argv) > 1:
-        # Detached helper, see keep_workspace().
-        for delay in (0.0, 0.9):
+        # Detached helper, see keep_workspace(). It asks AeroSpace directly and
+        # never through focused_workspace(): this process inherits
+        # OMARCHY_WORKSPACE from its parent, so the convenience of preferring
+        # that value would have it compare the target against itself and always
+        # decide there is nothing to do.
+        for delay in (0.0, 0.9, 1.6):
             time.sleep(delay)
-            if focused_workspace() not in ("", argv[1]):
+            now = aerospace("list-workspaces", "--focused")
+            if now and now != argv[1]:
                 aerospace("workspace", argv[1])
     elif cmd == "fetch":
         names = [n for n, _ in themes()] if (len(argv) > 1 and argv[1] == "--all") \

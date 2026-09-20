@@ -92,6 +92,13 @@ defaults write com.apple.symbolichotkeys AppleSymbolicHotKeys -dict-add 64 '
 <key>type</key><string>standard</string></dict></dict>' 2>/dev/null || true
 /System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings -u 2>/dev/null || true
 
+# Optional: real scrolling layout (builds AeroSpace from source, needs Xcode).
+# Off by default because it replaces a Homebrew-managed app with a source build.
+if [ "${1:-}" = "--scrolling" ] || [ "${OMARCHY_SCROLLING:-0}" = "1" ]; then
+  say "Installing the scrolling-layout fork"
+  "$REPO/bin/install-aerospace-fork.sh"
+fi
+
 say "Starting services"
 # Reload rather than kill-and-respawn: the replacement races sketchybar's lock
 # file, loses, and leaves the old instance running with the old config.
@@ -119,4 +126,7 @@ Installed. Four things still need YOUR hands (macOS will not let a script do the
   4. Log out / back in if Spotlight still owns Cmd+Space
 
 Your previous config was backed up. See the path printed above.
+
+Want Omarchy's real scrolling layout (stock AeroSpace has no such layout)?
+  ./bin/install-aerospace-fork.sh      # or re-run: ./install.sh --scrolling
 DONE

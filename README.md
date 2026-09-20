@@ -196,13 +196,67 @@ A switch also sets **macOS light/dark appearance** from the theme's `mode`. This
 more than the config files: browsers, Finder and native apps follow the system appearance,
 not anything we generate. Without it a light theme leaves half the desktop dark.
 
+## Optional: real scrolling layout
+
+Stock AeroSpace has three layouts — `tiles`, `accordion`, `floating` — and **no scrolling
+layout**, so the base setup approximates Omarchy's with a horizontal accordion. It's close
+in spirit, not in mechanism.
+
+If you want the real thing:
+
+```sh
+./bin/install-aerospace-fork.sh          # builds from source; needs Xcode
+./bin/revert-aerospace-fork.sh           # back to the Homebrew build
+```
+
+This builds a fork of AeroSpace carrying [PR #2057](https://github.com/nikitabobko/AeroSpace/pull/2057)
+by **vadika** (adds `scrolling` and `tabs` layouts, plus a `scroll` command), and a peek
+on top so a sliver of the next page stays visible instead of the page boundary being a
+hard cut.
+
+| Key | Stock | With the fork |
+|---|---|---|
+| `⌥L` | dwindle ⇄ accordion | dwindle → scrolling → tabs |
+| `⌥⌃←` `⌥⌃→` | — | scroll the viewport a page |
+
+`layout_toggle.sh` detects which build you have (the `scroll` subcommand only exists in
+the fork) and cycles accordingly, so the same config works either way.
+
+Tune the sliver in `~/.aerospace.toml`, then `aerospace reload-config`:
+
+```toml
+scrolling-peek-width = 40   # points; 0 disables
+```
+
+### Things that will bite you
+
+- **`brew upgrade` silently reverts you to stock** — the cask owns both
+  `/Applications/AeroSpace.app` and the `aerospace` symlink. Worse, stock then *refuses to
+  load your config*, because `scrolling-peek-width` and `scroll` are unknown to it. Re-run
+  the install script, or revert first.
+- **The fork-only config keys are added by the install script, not shipped in
+  `config/aerospace.toml`** — for exactly that reason. Don't move them.
+- **Don't `git checkout xcode/AeroSpace.xcodeproj/project.pbxproj`** after running
+  `generate.sh`. The committed version hardcodes a codesign identity
+  (`aerospace-codesign-certificate`) that exists on no machine but the maintainer's, and
+  the Xcode build then fails while a following CLI build still returns 0 — so the whole
+  thing looks successful and you install a stale app.
+- **You can't jump from `tabs` straight to `scrolling`.** `layout scrolling` only applies
+  when the focused node is the root container. The `⌥L` cycle routes through `tiles`, but
+  a direct `aerospace layout scrolling` from tabs fails silently.
+- **Multi-monitor**: the peek auto-suppresses when a display sits to the right, because a
+  window manager can't clip windows and the peeking window would bleed onto it. Built-in
+  alone → peek works. Docked with an external on the right → peek turns off.
+- It's an unmerged PR. You're off upstream releases until it lands.
+
 ## Notes and honest limitations
 
 Things that do **not** work the way you'd expect on macOS, each verified the hard way:
 
-- **No scrolling layout.** AeroSpace has `tiles`, `accordion`, `floating` — that's all.
-  `⌥L` toggles `tiles` ⇄ `h_accordion` as the nearest analogue. Tune the peek with
-  `accordion-padding` (default 80 here).
+- **No scrolling layout in stock AeroSpace.** It has `tiles`, `accordion`, `floating` —
+  that's all, so `⌥L` toggles `tiles` ⇄ `h_accordion` as the nearest analogue (tune it with
+  `accordion-padding`, default 80 here). See *Optional: real scrolling layout* above for
+  the fork that adds a genuine one.
 - **Brightness needs a private framework.** `brew install brightness` fails with
   `-536870201`; ioreg's `IODisplayParameters."brightness"` is pinned at exactly
   `32768/65536` (always reports 50%); `"rawBrightness"` never moves. Only

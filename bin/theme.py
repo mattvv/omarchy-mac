@@ -575,8 +575,14 @@ if __name__ == "__main__":
         # OMARCHY_WORKSPACE from its parent, so the convenience of preferring
         # that value would have it compare the target against itself and always
         # decide there is nothing to do.
-        for delay in (0.0, 0.9, 1.6):
-            time.sleep(delay)
+        # Absolute offsets, not gaps: sleeping 0, 0.9 then 1.6 in a loop lands
+        # the third check at 2.5s, and anyone who deliberately changes workspace
+        # inside that window gets yanked back.
+        start = time.time()
+        for offset in (0.0, 0.9, 1.6):
+            remaining = offset - (time.time() - start)
+            if remaining > 0:
+                time.sleep(remaining)
             now = aerospace("list-workspaces", "--focused")
             if now and now != argv[1]:
                 aerospace("workspace", argv[1])

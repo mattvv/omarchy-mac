@@ -118,6 +118,22 @@ Each of these cost real time to diagnose. Don't repeat them.
   nothing, and `exit(1)` before the window ever appeared. `pgrep -f OmarchyPicker` during a
   test is the check that catches this: a workspace timeline that never moves looks
   identical whether the picker behaved or never opened at all.
+- **The workspace excursion cannot be prevented, only corrected — three hypotheses were
+  measured and all three failed.** Do not re-litigate this without new evidence:
+  1. *Handing focus back to the previously-frontmost app causes it.* No: with
+     `OMARCHY_PICKER_NO_HANDBACK=1` the excursion is identical (25–26 samples away out of
+     34, three runs each way).
+  2. *A nonactivating panel prevents it* (`.nonactivatingPanel` + `canBecomeMain: false` +
+     no `app.activate`). No: identical again, 25–26 samples. The mode still exists behind
+     `OMARCHY_PICKER_NONACTIVATING=1`. Note its probe reports `app.isActive=true` here,
+     which is not what that model is supposed to produce — unexplained.
+  3. *It happens at process exit, so a resident host would fix it.* No: with
+     `OMARCHY_PICKER_LINGER=6` the workspace moved at `orderOut` while the process stayed
+     alive for six more seconds. It is the window going away that moves you.
+  So the picker corrects it itself, synchronously, right after `orderOut` — that is why it
+  takes `--workspace`. Correcting in-process beats waiting for a detached interpreter to
+  start: the background picker's excursion is one 0.15 s sample. The theme picker's ~0.6 s
+  is the *apply* moving focus afterwards, not the picker.
 - **The overlay must appear before anything else happens.** The picker shows its window
   first and reads its rows afterwards, on a background queue. Reading them first cost about
   half a second of blank screen between the launcher starting the process and anything

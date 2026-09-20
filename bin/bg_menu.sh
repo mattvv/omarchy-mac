@@ -45,6 +45,7 @@ fi
 # starts in the same breath as the interpreter that feeds it.
 choice=$(python3 "$BIN/theme.py" rows backgrounds "$theme" | "$PICKER" \
   --hint "←→  browse      ⏎  set background      esc  cancel" \
+  --workspace "$ws_before" \
   --background "${BG:-0xff101315}" --foreground "${FG:-0xffcacccc}" \
   --accent "${ACCENT:-0xff798186}" --dark-background "${DARKBG:-0xff0c0e10}")
 

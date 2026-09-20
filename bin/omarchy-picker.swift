@@ -54,6 +54,7 @@ struct Options {
     var chrome       = false     // compose a mock desktop over the wallpaper
     var hint         = ""
     var altKey: Character? = nil
+    var workspace = ""          // AeroSpace workspace to return to on dismissal
     var background   = "#101315"
     var foreground   = "#cacccc"
     var accent       = "#798186"
@@ -72,6 +73,7 @@ func parseArgs() -> Options {
         case "--chrome":     o.chrome = true
         case "--hint":       o.hint = next()
         case "--alt-key":    o.altKey = next().lowercased().first
+        case "--workspace":  o.workspace = next()
         case "--background": o.background = next()
         case "--foreground": o.foreground = next()
         case "--accent":     o.accent = next()
@@ -335,6 +337,11 @@ final class CarouselView: NSView {
         loadNearby()
     }
     func updateFilter(_ text: String) {
+        // matches() indexes rows[], and rows arrive asynchronously now -- type
+        // during the window between launch and the first row and this walks off
+        // the end of an empty array. selectAdjacent and select are guarded;
+        // this was not.
+        guard !rows.isEmpty else { return }
         filter = text
         if !matches(selected), let first = (0..<rows.count).first(where: { matches($0) }) {
             selected = first
@@ -577,19 +584,58 @@ final class CarouselView: NSView {
 
 // ── Window ───────────────────────────────────────────────────────────────────
 
+/// True once dismissal has begun. Delayed callbacks -- the activation retry,
+/// the debug probes -- must not resurrect a panel during the 80ms it spends
+/// handing focus back before the process exits.
+var isFinishing = false
+
 /// Put the keyboard back where it was.
 ///
 /// Left to itself macOS hands focus to the next app in its own order when we
 /// quit, and under AeroSpace that choice drags you to whichever workspace that
 /// app's window lives on -- you ask for a theme and land on workspace 1.
 func dismiss(printing value: String?, code: Int32) {
+    isFinishing = true
     panel.orderOut(nil)
-    if let prev = previousApp, prev.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+
+    // Measured: the workspace excursion happens the moment the window is
+    // ordered out, not when the process exits (a picker held open for six
+    // seconds after orderOut had already been moved). So it cannot be avoided
+    // at the window level -- only corrected, and the correction is worth doing
+    // here rather than waiting on a detached interpreter to start.
+    if !opts.workspace.isEmpty {
+        for path in ["/opt/homebrew/bin/aerospace", "/usr/local/bin/aerospace"]
+        where FileManager.default.isExecutableFile(atPath: path) {
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: path)
+            task.arguments = ["workspace", opts.workspace]
+            task.standardInput = FileHandle.nullDevice
+            task.standardOutput = FileHandle.nullDevice
+            task.standardError = FileHandle.nullDevice
+            try? task.run()
+            task.waitUntilExit()
+            break
+        }
+    }
+    // OMARCHY_PICKER_NO_HANDBACK=1 skips this. On a workspace with no windows
+    // of its own the previously-frontmost app is, by definition, one whose
+    // windows are elsewhere -- so handing focus back may be *requesting* the
+    // very excursion the restore helper then spends seconds undoing.
+    if !nonactivating,
+       ProcessInfo.processInfo.environment["OMARCHY_PICKER_NO_HANDBACK"] != "1",
+       let prev = previousApp,
+       prev.processIdentifier != ProcessInfo.processInfo.processIdentifier {
         prev.activate(options: [])
     }
     if let value { print(value) }
-    // Let the activation request land before this process disappears.
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { exit(code) }
+    // OMARCHY_PICKER_LINGER=<seconds> holds the process open after the window
+    // is gone. It answers one question: does the workspace excursion happen
+    // when the window is ordered out, or when the process exits? If only at
+    // exit, no amount of window-level fiddling helps and the answer is a
+    // resident host -- which is what upstream has, since omarchy-shell is a
+    // long-lived process whose menu is a plugin that shows and hides.
+    let linger = Double(ProcessInfo.processInfo.environment["OMARCHY_PICKER_LINGER"] ?? "") ?? 0.08
+    DispatchQueue.main.asyncAfter(deadline: .now() + linger) { exit(code) }
 }
 
 // A borderless NSPanel: AeroSpace only tiles windows whose accessibility
@@ -597,10 +643,18 @@ func dismiss(printing value: String?, code: Int32) {
 // window rule for a binary that has no bundle id to match on.
 final class PickerPanel: NSPanel {
     override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
+    // Main is what an *active application* has. A panel that never activates
+    // its app must not claim it.
+    override var canBecomeMain: Bool { !nonactivating }
 }
 
 let opts = parseArgs()
+
+// OMARCHY_PICKER_NONACTIVATING=1 selects the other focus model: a panel that
+// takes the keyboard without its application ever becoming active. The success
+// state then reads app.isActive=false with panel.isKeyWindow=true, which looks
+// like failure and is not.
+let nonactivating = ProcessInfo.processInfo.environment["OMARCHY_PICKER_NONACTIVATING"] == "1"
 
 // Captured before activating, while the answer is still someone else.
 let previousApp = NSWorkspace.shared.frontmostApplication
@@ -615,8 +669,11 @@ let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.fr
 // app, so the panel never becomes key and every arrow key goes to whatever was
 // in front. Verified -- with it set, System Events still reported the terminal
 // as frontmost with the picker covering the screen.
-let panel = PickerPanel(contentRect: screen.frame, styleMask: [.borderless],
+let panel = PickerPanel(contentRect: screen.frame,
+                        styleMask: nonactivating ? [.borderless, .nonactivatingPanel]
+                                                 : [.borderless],
                         backing: .buffered, defer: false, screen: screen)
+panel.becomesKeyOnlyIfNeeded = false
 panel.level = .screenSaver
 panel.isOpaque = false
 panel.backgroundColor = .clear
@@ -630,7 +687,10 @@ let view = CarouselView(opts: opts, frame: NSRect(origin: .zero, size: screen.fr
 panel.contentView = view
 
 panel.orderFrontRegardless()
-app.activate(ignoringOtherApps: true)
+// Asking to activate while wearing a nonactivating style mask is a
+// contradiction -- it is the likeliest reason this model was written off here
+// the first time.
+if !nonactivating { app.activate(ignoringOtherApps: true) }
 panel.makeKeyAndOrderFront(nil)
 panel.makeFirstResponder(view)
 view.layout(animated: false)
@@ -654,7 +714,7 @@ DispatchQueue.global(qos: .userInitiated).async {
 // app is still settling -- a full-screen overlay that eats keystrokes without
 // responding to them is the worst possible failure, so ask twice.
 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-    guard !panel.isKeyWindow else { return }
+    guard !isFinishing, !nonactivating, !panel.isKeyWindow else { return }
     app.activate(ignoringOtherApps: true)
     panel.makeKeyAndOrderFront(nil)
     panel.makeFirstResponder(view)
@@ -664,7 +724,10 @@ DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
 // is the one path that cannot be screenshotted or driven without typing into
 // someone's live session, and it is the path that moves focus.
 if ProcessInfo.processInfo.environment["OMARCHY_PICKER_DEBUG_SELECT"] == "1" {
-    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { view.finish(exitCode: 0) }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+        guard !isFinishing else { return }
+        view.finish(exitCode: 0)
+    }
 }
 
 // OMARCHY_PICKER_DEBUG=1: say whether the overlay actually holds the keyboard.

@@ -113,6 +113,9 @@ Each of these cost real time to diagnose. Don't repeat them.
   terminal and fails from every button. Reproduce it with
   `env -i HOME="$HOME" PATH=/usr/bin:/bin /bin/bash <script>`, and resolve `sketchybar`,
   `borders`, `pgrep` and `osascript` through `tool()` rather than naming them bare.
+- **The workspace guard belongs in `theme.py`, not only in the wrappers.** Raycast's
+  dropdown command calls `theme.py set` directly and never touches `theme_menu.sh`, so a
+  guard that lives only in the shell covers the pickers and misses the launcher.
 - **Closing a window on an empty AeroSpace workspace moves you.** With nothing left to
   focus, macOS hands focus to an app on another workspace and AeroSpace follows — open the
   picker on an empty workspace 3 and closing it drops you on 1. The wrappers record

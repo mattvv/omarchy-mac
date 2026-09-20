@@ -89,6 +89,39 @@ def tool(name: str) -> str | None:
     return None
 
 
+def aerospace(*args: str) -> str:
+    """Always with stdin closed: the CLI blocks on a non-TTY stdin and looks
+    like a hang -- the single most expensive trap in this repo."""
+    aero = tool("aerospace")
+    if not aero:
+        return ""
+    r = subprocess.run([aero, *args], capture_output=True, text=True,
+                       stdin=subprocess.DEVNULL)
+    return r.stdout.strip()
+
+
+def focused_workspace() -> str:
+    return aerospace("list-workspaces", "--focused")
+
+
+def keep_workspace(ws: str):
+    """Stay where the user was.
+
+    AeroSpace follows macOS focus, and applying a theme moves focus about --
+    sketchybar reloads, borders restarts, the appearance flips. On a workspace
+    with no windows of its own there is nothing here to focus, so macOS hands
+    focus to an app on another workspace and AeroSpace goes along: you switch
+    theme on an empty workspace 3 and land on 1.
+
+    Detached, because the follow can arrive after we would have exited, and
+    twice, because it can also arrive after we have already come back once."""
+    if not (ws and tool("aerospace")):
+        return
+    subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "_keep-workspace", ws],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=True)
+
+
 def osa(*script: str):
     binary = tool("osascript") or "/usr/bin/osascript"
     args = [binary]
@@ -300,6 +333,7 @@ def set_bg(path: Path, theme: str | None = None):
 
 
 def next_bg():
+    here = focused_workspace()
     theme = current()
     have = backgrounds(theme) or fetch(theme)
     if not have:
@@ -307,6 +341,7 @@ def next_bg():
     cur = current_bg(theme)
     i = have.index(cur) + 1 if cur in have else 0
     set_bg(have[i % len(have)], theme)
+    keep_workspace(here)
     print(have[i % len(have)].name)
 
 
@@ -350,12 +385,23 @@ def reload_terminals():
     if wz.exists():
         wz.touch()
     pgrep = tool("pgrep")
-    if pgrep and subprocess.run([pgrep, "-x", "ghostty"], capture_output=True).returncode == 0:
-        osa('tell application "System Events" to tell process "Ghostty" '
-            'to keystroke "," using {command down, shift down}')
+    if not (pgrep and subprocess.run([pgrep, "-x", "ghostty"],
+                                     capture_output=True).returncode == 0):
+        return
+    # A keystroke goes wherever the keyboard already is, so sending one while
+    # something else is focused either does nothing or -- worse -- brings
+    # Ghostty forward and takes AeroSpace to its workspace. Only reload the
+    # terminal you are actually looking at; the rest catch up when they restart.
+    front = osa('tell application "System Events" to get name of first '
+                'application process whose frontmost is true')
+    if front.stdout.decode(errors="replace").strip().lower() != "ghostty":
+        return
+    osa('tell application "System Events" to tell process "Ghostty" '
+        'to keystroke "," using {command down, shift down}')
 
 
 def apply(name):
+    here = focused_workspace()
     c = load(name)
     write_sketchybar(name, c); write_ghostty(name, c); write_wezterm(name, c)
     set_appearance(c.get("mode", "dark"))
@@ -382,6 +428,7 @@ def apply(name):
     if sketchybar:
         subprocess.run([sketchybar, "--reload"], capture_output=True)
     reload_terminals()
+    keep_workspace(here)
     print(name)
 
 
@@ -503,6 +550,12 @@ if __name__ == "__main__":
             print(p or "")
     elif cmd == "raycast":
         print(write_raycast(Path(argv[1]) if len(argv) > 1 else None))
+    elif cmd == "_keep-workspace" and len(argv) > 1:
+        # Detached helper, see keep_workspace().
+        for delay in (0.0, 0.9):
+            time.sleep(delay)
+            if focused_workspace() not in ("", argv[1]):
+                aerospace("workspace", argv[1])
     elif cmd == "fetch":
         names = [n for n, _ in themes()] if (len(argv) > 1 and argv[1] == "--all") \
             else argv[1:] or [current()]

@@ -1,6 +1,6 @@
 # omarchy-mac
 
-An [Omarchy](https://github.com/basecamp/omarchy)-flavoured macOS desktop: tiling window
+An [Omarchy](https://github.com/omacom/omarchy)-flavoured macOS desktop: tiling window
 management, a bar with working panels, and the **Solitude** theme across terminal, bar and
 window borders.
 
@@ -18,6 +18,7 @@ Omarchy's actual config where the platform allows and documenting where it doesn
 | Omarchy shell bar | [SketchyBar](https://github.com/FelixKratz/SketchyBar) |
 | Hyprland borders | [JankyBorders](https://github.com/FelixKratz/JankyBorders) |
 | walker launcher | Raycast on `Cmd+Space` |
+| omarchy's image picker | the same carousel, rebuilt in AppKit |
 | Alacritty/Ghostty | Ghostty (WezTerm config included too) |
 | Solitude theme | same palette, everywhere |
 
@@ -63,9 +64,15 @@ Omarchy's `SUPER` maps to **Option (⌥)**, not Command. Using ⌘ would clobber
 | `⌥⇧F` | file manager | `SUPER+SHIFT+F` |
 | `⌥⇧/` | passwords | `SUPER+SHIFT+SLASH` |
 | `⌥Space` | launcher | `SUPER+SPACE` |
+| `⌥⌃⇧Space` | theme picker | `SUPER+SHIFT+CTRL+SPACE` |
+| `⌥⌃Space` | background picker | `SUPER+CTRL+SPACE` |
 | `⌥⇧Space` | toggle the bar | `SUPER+SHIFT+SPACE` |
 | `⌥/` `⌥⌃/` | display scale up / down | `SUPER+SLASH` |
 | `⌥R` | resize mode | — |
+
+`⌥⌃Space` is macOS's own *select next keyboard layout* shortcut and part of VoiceOver's
+`VO+Space`. It only collides if you have more than one input source enabled or use
+VoiceOver — clear it in System Settings → Keyboard → Shortcuts → Input Sources if so.
 
 `⌥Return` is registered by **Ghostty itself** (`keybind = global:alt+enter=new_window`),
 not AeroSpace — see Notes.
@@ -118,24 +125,63 @@ Omarchy's **Solitude** — a desaturated near-monochrome dark palette.
 | accent | `#798186` |
 | borders | gradient `#798186 → #cacccc` |
 
-Swap themes by lifting `colors.toml` from any
-[Omarchy theme](https://github.com/basecamp/omarchy/tree/master/themes) into
-`sketchybarrc`, `ghostty/config` and the plugin scripts.
+It is the default, not a commitment — every other Omarchy theme is one `⌥⌃⇧Space` away.
+See [Themes](#themes).
 
 ## Themes
 
-All 22 [Omarchy themes](https://github.com/basecamp/omarchy/tree/master/themes) are
-vendored as palettes under `themes/`, including the light ones.
+All 22 [Omarchy themes](https://github.com/omacom/omarchy) are vendored
+as palettes under `themes/`, including the light ones.
+
+### The picker
+
+`⌥⌃⇧Space` opens the full-screen picker — omarchy's, rebuilt for AppKit: one expanded
+preview in the middle, every other theme a narrow skewed slice fanning out either side,
+arrows or two-finger swipe to slide, type to filter, `⏎` to wear it, `esc` to back out.
+The geometry is lifted from omarchy's `ImagePicker.qml` (768×475 preview, 108×432 slices
+at −30 overlap, 28px skew), scaled to your screen.
+
+Each card is a small mock desktop drawn from that theme's own palette — its wallpaper, its
+bar, a terminal in its colours — so you are looking at the theme, not at a name in a list.
+A theme whose wallpaper hasn't been downloaded yet still draws in its own colours.
+
+`⌘B` on any theme wears it and drops straight into its backgrounds.
+
+### Backgrounds
+
+`⌥⌃Space` picks a background for the current theme — the same carousel, no labels and no
+filter, because you are looking at pictures. Every theme keeps its own choice, so going
+back to a theme restores the wallpaper you left it on.
+
+```sh
+theme.py bg next              # cycle within the current theme
+theme.py bg current           # what's on screen
+theme.py fetch --all          # pull every theme's backgrounds up front (~15 MB)
+```
+
+Backgrounds come from upstream on demand. A theme switch fetches one inline and the rest
+in a detached process, so switching never waits on the network.
+
+### From Cmd+Space
+
+`install.sh` generates Raycast script commands into `~/.local/share/omarchy-mac/raycast`
+(add it once: Raycast → Settings → Extensions → **+** → Add Script Directory):
+
+| Raycast command | Does |
+|---|---|
+| **Omarchy Theme** | dropdown of all 22, applies on `⏎` |
+| **Omarchy Theme Picker** | opens the full-screen picker |
+| **Omarchy Background** | opens the background picker |
+| **Omarchy Next Background** | cycles the current theme's backgrounds |
+
+The palette icon in the bar opens the same pickers — left click themes, right click
+backgrounds.
 
 ```sh
 theme.py list              # names + mode
 theme.py set tokyo-night   # apply
 theme.py current
 ```
-
-Or click the palette icon in the bar — a picker where each row is drawn in that theme's
-own accent and background, so you see it before you pick it. Also on `⌥⌃⇧Space`
-(Omarchy's `SUPER+SHIFT+CTRL+SPACE`).
 
 Nothing rewrites your app configs. Like Omarchy's `~/.local/state/omarchy/current/theme/`,
 a switch regenerates three files that the configs *include*:
@@ -180,12 +226,27 @@ Things that do **not** work the way you'd expect on macOS, each verified the har
   WezTerm watches its main config (but not `dofile`d files, so the main file is touched);
   Ghostty has no reload CLI and binds `reload_config` to `⌘⇧,`, driven via System Events —
   which needs an Automation grant and so may no-op when triggered from a bar click.
+- **Quickshell does not run here.** Omarchy's picker is a Quickshell/QML plugin, and
+  Quickshell is Linux/BSD only — its overlay is a wlroots layer-shell surface
+  (`WlrLayershell`, `WlrKeyboardFocus.Exclusive`), a Wayland protocol macOS has no
+  equivalent of. The picker here is the same *design* in ~580 lines of AppKit, not a port.
+- **Upstream moved.** `basecamp/omarchy` is now `omacom/omarchy` and its default branch is
+  no longer `master`, so old `raw.githubusercontent.com` paths 404. Backgrounds are fetched
+  through the contents API, which redirects by repository id. Most of them are `.webp` now.
+- **The bar floats above the picker.** sketchybar sits at a higher window level than the
+  picker's overlay panel, so the top strip stays lit while everything else dims. Omarchy's
+  layer-shell overlay covers its bar; matching that would mean shielding-window level.
 - **`sketchybar --query` can't see** `background`, `drawing` on popup items, or
   `notch_width` — don't trust it to verify those.
 
 ## Layout
 
 ```
+bin/
+  omarchy-picker.swift        the full-screen carousel (built into a .app)
+  theme.py                    palettes, backgrounds, picker rows, Raycast commands
+  theme_menu.sh               ⌥⌃⇧Space — pick a theme
+  bg_menu.sh                  ⌥⌃Space  — pick a background
 config/
   aerospace.toml              window manager + keybindings
   wezterm.lua                 WezTerm, Solitude
@@ -193,6 +254,7 @@ config/
   sketchybar/
     sketchybarrc              bar layout
     plugins/                  panel scripts
+themes/                       22 vendored Omarchy palettes
 install.sh
 ```
 
@@ -200,8 +262,9 @@ Paths are stored as `__HOME__` and substituted at install time.
 
 ## Credits
 
-[Omarchy](https://github.com/basecamp/omarchy) by Basecamp (MIT) — the design this follows,
-and the source of the Solitude palette and the usage collectors.
+[Omarchy](https://github.com/omacom/omarchy) (MIT) — the design this follows, and the
+source of the palettes, the backgrounds and the usage collectors. The picker's geometry is
+taken from its `shell/plugins/image-picker/ImagePicker.qml` down to the numbers.
 [omachy](https://github.com/dough654/omachy) showed that Alt-as-SUPER is the right call on macOS.
 
 MIT

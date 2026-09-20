@@ -37,7 +37,19 @@ Open the pane for them:
 aerospace list-modes </dev/null          # expect: main, resize, service
 sketchybar --query bar | python3 -c "import sys,json;print(len(json.load(sys.stdin)['items']))"
 python3 ~/.config/sketchybar/plugins-omarchy/brightness.py   # expect a number
+
+python3 ~/.local/bin/theme.py rows themes | wc -l   # expect 22 -- 0 means theme.py
+                                                    # cannot see the palettes
+ls ~/.local/share/omarchy-mac/OmarchyPicker.app/Contents/MacOS/omarchy-picker
+OMARCHY_PICKER_DEBUG=1 ~/.local/bin/theme_menu.sh   # stderr must say
+                                                    # app.isActive=true panel.isKey=true
 ```
+
+**A screenshot cannot tell you whether the picker has the keyboard.** It will look
+perfect and eat every keystroke. `OMARCHY_PICKER_DEBUG=1` is the only check that answers
+it — and note that `System Events`' "frontmost application process" is *blind* to an
+`LSUIElement` app, so it reports the terminal and looks like a failure when there is
+none.
 
 **Always redirect stdin (`</dev/null`) for `aerospace` commands.** Without it the CLI can
 block on a non-TTY stdin and look like a hang — this wastes a lot of time otherwise.
@@ -75,6 +87,18 @@ Each of these cost real time to diagnose. Don't repeat them.
   blanks the bar — do not reach for them.
 - **Never `pkill sketchybar` to apply a change.** It races the lock file and leaves the
   stale instance running. Use `sketchybar --reload`.
+- **`theme.py` must find its palettes from either location.** Run from the repo they sit
+  in `../themes`; installed into `~/.local/bin` they are in
+  `~/.local/share/omarchy-mac/themes`. Resolving only the first left the installed copy
+  pointing at `~/.local/themes` — `list`, `rows` and `set` then returned *nothing at all*,
+  silently, and the bar's theme menu did nothing.
+- **Upstream moved: `basecamp/omarchy` → `omacom/omarchy`**, default branch no longer
+  `master`. Old `raw.githubusercontent.com/basecamp/...` URLs return 404 with no
+  redirect; the `api.github.com/repos/.../contents/...` path still redirects correctly and
+  hands back a current `download_url`. Backgrounds are mostly `.webp` now — glob for it.
+- **Quickshell is Linux/BSD only.** Omarchy's picker is a Quickshell plugin whose overlay
+  is a wlroots layer-shell surface. There is no macOS build and no equivalent protocol —
+  don't go looking for one. `bin/omarchy-picker.swift` reimplements the design in AppKit.
 - **A theme switch must also set macOS appearance** (`System Events` → `appearance
   preferences` → `dark mode`). Config files alone leave browsers and native apps wrong.
 
@@ -87,3 +111,11 @@ Each of these cost real time to diagnose. Don't repeat them.
   model-scoped weekly limit is frequently the highest utilisation, and reading buckets
   alone hides it.
 - **Never print, log or cache the OAuth token** — Authorization header only.
+- **The picker ships as a minimal `.app`, not a bare binary.** The Info.plist is what gives
+  it a bundle id (`dev.omarchy-mac.picker`) for AeroSpace's `on-window-detected` floating
+  rule to match, and `LSUIElement` is what keeps a full-screen overlay out of the Dock and
+  `⌘Tab`. A bundle-less binary has no id to match on.
+- **The picker prints, it does not apply.** `theme_menu.sh` runs the picker, gets a name on
+  stdout and calls `theme.py set` — the same split as omarchy's
+  `theme=$(omarchy-theme-switcher); omarchy-theme-set "$theme"`. Keep the picker generic:
+  it is an image carousel that knows nothing about themes.

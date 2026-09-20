@@ -136,25 +136,13 @@ for n in 1 2 3; do
 done
 
 # ── position `e`: immediately RIGHT of the notch (omarchy theme menu) ────────
+# Click opens the full-screen picker rather than a drop-down: 22 themes in a
+# bar popup is a list, and the point of omarchy's picker is that you see the
+# theme before you choose it. Right-click goes to that theme's backgrounds.
 sketchybar --add item theme e \
     --set theme update_freq=60 label.drawing=off \
         script="$PLUGIN_DIR/theme_item.sh" \
-        click_script="$PLUGIN_DIR/theme_popup.sh" \
-        popup.background.color=$DARKBG          \
-        popup.background.corner_radius=6        \
-        popup.background.border_width=1         \
-        popup.background.border_color=$SEL      \
-        popup.background.shadow.drawing=on      \
-        popup.align=right                       \
-        popup.y_offset=4                        \
-        popup.height=24                         \
-    --subscribe theme mouse.exited.global
-
-for n in $(seq 1 24); do
-  sketchybar --add item theme.r$n popup.theme \
-      --set theme.r$n label="—" label.font="$FONT:Bold:12.0" \
-            icon.font="$FONT:Bold:11.0" label.width=150
-done
+        click_script="$PLUGIN_DIR/theme_click.sh"
 
 # ── RIGHT (first added = rightmost) ───────────────────────────────────────────
 # clock — rightmost

@@ -5,24 +5,55 @@ Mirrors omarchy's approach: never rewrite the app configs, generate one theme
 file per app and have each config include it. Palettes are omarchy's own
 themes/<name>/colors.toml, vendored under themes/.
 
-  theme.py list            names + mode
-  theme.py current         active theme
-  theme.py set <name>      generate, apply, restart services
+  theme.py list                 names + mode
+  theme.py current              active theme
+  theme.py set <name>           generate, apply, restart services
+
+  theme.py rows themes          TSV for omarchy-picker (value, image, label, palette)
+  theme.py rows backgrounds [t] TSV of one theme's backgrounds
+
+  theme.py bg current [theme]   the background in use for a theme
+  theme.py bg set <path>        set and remember it for the current theme
+  theme.py bg next              cycle (omarchy's SUPER+CTRL+SPACE does this too)
+  theme.py fetch <name>|--all   download a theme's backgrounds from upstream
+  theme.py raycast [dir]        (re)generate the Raycast script commands
 """
 from __future__ import annotations
-import json, os, re, subprocess, sys, tomllib, urllib.request
+import json, os, re, subprocess, sys, time, tomllib, urllib.request
 from pathlib import Path
 
 HOME = Path.home()
 REPO = Path(__file__).resolve().parent.parent
-THEMES = REPO / "themes"
 STATE = HOME / ".local/state/omarchy-mac"
-UPSTREAM = "https://raw.githubusercontent.com/basecamp/omarchy/master/themes"
+
+
+def _themes_dir() -> Path:
+    """Run from the repo, palettes sit next to this file; installed into
+    ~/.local/bin they live where install.sh copied them. Resolving only the
+    first of those left the installed copy pointing at ~/.local/themes, which
+    does not exist -- `list` and `set` then failed silently."""
+    for candidate in (REPO / "themes", HOME / ".local/share/omarchy-mac/themes"):
+        if candidate.is_dir():
+            return candidate
+    return REPO / "themes"
+
+
+THEMES = _themes_dir()
+# The upstream repo moved (basecamp/omarchy -> omacom/omarchy) and its default
+# branch is no longer master, so the old raw.githubusercontent.com paths 404.
+# The contents API is the stable way in: it redirects by repository id and
+# hands back a download_url that is always current.
+UPSTREAM_API = "https://api.github.com/repos/omacom/omarchy/contents/themes/{name}/backgrounds"
 
 SB_THEME   = HOME / ".config/sketchybar/theme.sh"
 GH_THEME   = HOME / ".config/ghostty/theme.conf"
 WZ_THEME   = HOME / ".config/wezterm-theme.lua"
 WALLPAPERS = HOME / "Pictures/omarchy-themes"
+BG_STATE   = STATE / "backgrounds.json"
+
+# What macOS will accept as a desktop picture. omarchy also lists video
+# formats; System Events cannot set one, so they are left out.
+IMAGE_EXT = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".heic")
 
 
 def hex6(v: str) -> str:
@@ -48,6 +79,11 @@ def themes() -> list[tuple[str, str]]:
         except Exception:
             out.append((p.stem, "dark"))
     return out
+
+
+def label(stem: str) -> str:
+    """omarchy's labelForPath: dashes out, title case in."""
+    return re.sub(r"[-_]+", " ", stem).title()
 
 
 def border_pair(c: dict) -> tuple[str, str]:
@@ -127,26 +163,127 @@ return {{
 ''')
 
 
-def wallpaper(name):
+# ── Backgrounds ──────────────────────────────────────────────────────────────
+#
+# One directory per theme under ~/Pictures/omarchy-themes, which is omarchy's
+# ~/.local/state/omarchy/current/theme/backgrounds by another name. The chosen
+# file per theme is remembered, so going back to a theme restores the wallpaper
+# you left it on -- omarchy keeps a `current/background` symlink for this.
+
+def bg_dir(name: str) -> Path:
     d = WALLPAPERS / name
     d.mkdir(parents=True, exist_ok=True)
-    have = sorted(d.glob("*.jpg")) + sorted(d.glob("*.png"))
+    return d
+
+
+def backgrounds(name: str) -> list[Path]:
+    return sorted(p for p in bg_dir(name).iterdir()
+                  if p.is_file() and p.suffix.lower() in IMAGE_EXT)
+
+
+def fetch(name: str, first_only=False) -> list[Path]:
+    """Download a theme's backgrounds. Silent on failure: a theme switch must
+    still work on a plane."""
+    d = bg_dir(name)
+    have = backgrounds(name)
+    # Unauthenticated GitHub allows 60 calls an hour per IP. The background
+    # picker asks for a fetch on every open, which would spend that in an
+    # afternoon -- once a day per theme is plenty for a gallery that changes
+    # a few times a year.
+    marker = d / ".fetched"
+    if have and marker.exists() and time.time() - marker.stat().st_mtime < 86400:
+        return have
+    try:
+        req = urllib.request.Request(UPSTREAM_API.format(name=name),
+                                     headers={"Accept": "application/vnd.github+json"})
+        with urllib.request.urlopen(req, timeout=15) as r:
+            items = json.loads(r.read())
+    except Exception:
+        return backgrounds(name)
+    for item in items:
+        if not isinstance(item, dict) or item.get("type") != "file":
+            continue
+        if not item["name"].lower().endswith(IMAGE_EXT):
+            continue
+        dest = d / item["name"]
+        if not dest.exists():
+            try:
+                urllib.request.urlretrieve(item["download_url"], dest)
+            except Exception:
+                dest.unlink(missing_ok=True)
+                continue
+        if first_only:
+            return backgrounds(name)   # leave the marker unset: more to come
+    marker.touch()
+    return backgrounds(name)
+
+
+def bg_state() -> dict:
+    try:
+        return json.loads(BG_STATE.read_text())
+    except Exception:
+        return {}
+
+
+def remember_bg(theme: str, path: Path):
+    STATE.mkdir(parents=True, exist_ok=True)
+    state = bg_state()
+    state[theme] = str(path)
+    BG_STATE.write_text(json.dumps(state, indent=2, sort_keys=True))
+
+
+def current_bg(theme: str | None = None) -> Path | None:
+    theme = theme or current()
+    remembered = bg_state().get(theme)
+    if remembered and Path(remembered).exists():
+        return Path(remembered)
+    have = backgrounds(theme)
+    return have[0] if have else None
+
+
+def set_desktop_picture(path: Path):
+    # A path is data, not script: a quote or backslash in a filename would
+    # otherwise end the AppleScript string early.
+    quoted = str(path).replace("\\", "\\\\").replace('"', '\\"')
+    subprocess.run(["osascript", "-e",
+                    'tell application "System Events" to set picture of '
+                    f'every desktop to "{quoted}"'], capture_output=True)
+
+
+def set_bg(path: Path, theme: str | None = None):
+    theme = theme or current()
+    path = path.resolve()
+    if not path.exists():
+        sys.exit(f"no such background: {path}")
+    remember_bg(theme, path)
+    set_desktop_picture(path)
+
+
+def next_bg():
+    theme = current()
+    have = backgrounds(theme) or fetch(theme)
     if not have:
-        try:
-            api = f"https://api.github.com/repos/basecamp/omarchy/contents/themes/{name}/backgrounds"
-            with urllib.request.urlopen(api, timeout=10) as r:
-                for item in json.loads(r.read())[:1]:
-                    dest = d / item["name"]
-                    urllib.request.urlretrieve(item["download_url"], dest)
-                    have = [dest]
-        except Exception:
-            return
-    if have:
-        subprocess.run(["osascript", "-e",
-                        f'tell application "System Events" to set picture of every desktop to "{have[0]}"'],
-                       capture_output=True)
+        sys.exit("no backgrounds for this theme")
+    cur = current_bg(theme)
+    i = have.index(cur) + 1 if cur in have else 0
+    set_bg(have[i % len(have)], theme)
+    print(have[i % len(have)].name)
 
 
+def wallpaper(name):
+    """Apply this theme's wallpaper, fetching one if the cupboard is bare.
+
+    Only the first image is fetched inline -- the rest arrive in a detached
+    process so a theme switch never waits on the network for a picture you are
+    not looking at yet."""
+    have = backgrounds(name)
+    if not have:
+        have = fetch(name, first_only=True)
+    chosen = current_bg(name)
+    if chosen:
+        set_bg(chosen, name)
+    subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "fetch", name],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
 
 
 def set_appearance(mode: str):
@@ -160,6 +297,7 @@ def set_appearance(mode: str):
                     "tell application \"System Events\" to tell appearance "
                     f"preferences to set dark mode to {dark}"],
                    capture_output=True)
+
 
 def reload_terminals():
     """Terminals read their config at startup, so a theme swap leaves already
@@ -178,6 +316,7 @@ def reload_terminals():
                         'tell application "System Events" to tell process "Ghostty" '
                         'to keystroke "," using {command down, shift down}'],
                        capture_output=True)
+
 
 def apply(name):
     c = load(name)
@@ -208,15 +347,124 @@ def current() -> str:
     return f.read_text().strip() if f.exists() else "solitude"
 
 
+# ── Picker rows ──────────────────────────────────────────────────────────────
+#
+# TSV consumed by omarchy-picker: value, preview image, label, palette. The
+# palette is what lets a theme with no wallpaper downloaded yet still draw a
+# card in its own colours instead of a hole.
+
+PALETTE_KEYS = ["background", "dark_background", "foreground", "accent", "muted",
+                "red", "green", "yellow", "blue", "magenta", "cyan"]
+
+
+def palette(c: dict) -> str:
+    return ",".join("#" + hex6(c.get(k, c.get("foreground", "#cacccc"))) for k in PALETTE_KEYS)
+
+
+def rows_themes() -> str:
+    lines = []
+    for name, _mode in themes():
+        c = load(name)
+        bg = current_bg(name)
+        lines.append("\t".join([name, str(bg) if bg else "", label(name), palette(c)]))
+    return "\n".join(lines)
+
+
+def rows_backgrounds(theme: str | None = None) -> str:
+    theme = theme or current()
+    have = backgrounds(theme) or fetch(theme)
+    pal = palette(load(theme))
+    return "\n".join("\t".join([str(p), str(p), label(p.stem), pal]) for p in have)
+
+
+# ── Raycast ──────────────────────────────────────────────────────────────────
+#
+# Raycast is this setup's walker, so the theme and background switchers belong
+# in it the same way omarchy puts them in `omarchy-menu`. Script commands are
+# plain files in a directory Raycast is told to watch; the theme list has to be
+# baked into the dropdown, which is why they are generated rather than shipped.
+
+RAYCAST_DIR = HOME / ".local/share/omarchy-mac/raycast"
+
+RAYCAST_HEADER = """#!/usr/bin/env bash
+# Generated by theme.py -- do not edit.
+# @raycast.schemaVersion 1
+# @raycast.title %(title)s
+# @raycast.mode silent
+# @raycast.packageName Omarchy
+# @raycast.icon %(icon)s
+# @raycast.description %(description)s
+%(argument)s"""
+
+
+def write_raycast(dest: Path | None = None) -> Path:
+    dest = dest or RAYCAST_DIR
+    dest.mkdir(parents=True, exist_ok=True)
+    bindir = HOME / ".local/bin"
+    dropdown = json.dumps([{"title": label(n), "value": n} for n, _ in themes()])
+
+    commands = {
+        "omarchy-theme.sh": (
+            {"title": "Omarchy Theme", "icon": "\U0001f3a8",
+             "description": "Switch the Omarchy theme",
+             "argument": '# @raycast.argument1 { "type": "dropdown", '
+                         '"placeholder": "Theme", "data": ' + dropdown + ' }\n'},
+            f'exec python3 "{bindir}/theme.py" set "$1"\n'),
+        "omarchy-theme-picker.sh": (
+            {"title": "Omarchy Theme Picker", "icon": "\U0001f5bc",
+             "description": "Browse themes full screen", "argument": ""},
+            # Detached: Raycast waits on a silent command, and this one owns the
+            # screen until you pick something.
+            f'("{bindir}/theme_menu.sh" >/dev/null 2>&1 &)\n'),
+        "omarchy-background.sh": (
+            {"title": "Omarchy Background", "icon": "\U0001f304",
+             "description": "Pick a background for the current theme", "argument": ""},
+            f'("{bindir}/bg_menu.sh" >/dev/null 2>&1 &)\n'),
+        "omarchy-background-next.sh": (
+            {"title": "Omarchy Next Background", "icon": "\u23ed",
+             "description": "Cycle to the next background of the current theme",
+             "argument": ""},
+            f'exec python3 "{bindir}/theme.py" bg next\n'),
+    }
+
+    for name, (meta, body) in commands.items():
+        f = dest / name
+        f.write_text(RAYCAST_HEADER % meta + "\n" + body)
+        f.chmod(0o755)
+    return dest
+
+
 if __name__ == "__main__":
-    cmd = sys.argv[1] if len(sys.argv) > 1 else "list"
+    argv = sys.argv[1:]
+    cmd = argv[0] if argv else "list"
     if cmd == "list":
         cur = current()
         for n, m in themes():
             print(f'{"*" if n == cur else " "} {n:<18} {m}')
     elif cmd == "current":
         print(current())
-    elif cmd == "set" and len(sys.argv) > 2:
-        apply(sys.argv[2])
+    elif cmd == "set" and len(argv) > 1:
+        apply(argv[1])
+    elif cmd == "rows":
+        what = argv[1] if len(argv) > 1 else "themes"
+        print(rows_themes() if what.startswith("theme")
+              else rows_backgrounds(argv[2] if len(argv) > 2 else None))
+    elif cmd == "bg":
+        sub = argv[1] if len(argv) > 1 else "current"
+        if sub == "set" and len(argv) > 2:
+            set_bg(Path(argv[2]))
+        elif sub == "next":
+            next_bg()
+        else:
+            p = current_bg(argv[2] if len(argv) > 2 else None)
+            print(p or "")
+    elif cmd == "raycast":
+        print(write_raycast(Path(argv[1]) if len(argv) > 1 else None))
+    elif cmd == "fetch":
+        names = [n for n, _ in themes()] if (len(argv) > 1 and argv[1] == "--all") \
+            else argv[1:] or [current()]
+        for n in names:
+            got = fetch(n)
+            print(f"{n:<18} {len(got)}")
     else:
         sys.exit(__doc__)

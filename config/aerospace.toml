@@ -4,7 +4,9 @@
 
 after-startup-command = [
 'exec-and-forget sketchybar',
-'exec-and-forget borders active_color=gradient(top_left=0xff798186,bottom_right=0xffcacccc) inactive_color=0xff1e1e1e width=4.0'
+# exec-and-forget runs through a shell, so the gradient's parens must be
+# escaped -- unescaped this is a bash syntax error and has never run.
+'exec-and-forget borders active_color=gradient\(top_left=0xff798186,bottom_right=0xffcacccc\) inactive_color=0xff1e1e1e width=4.0'
 ]
 
 # Notify Sketchybar about workspace change
@@ -27,6 +29,13 @@ default-root-container-orientation = 'auto'
 on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
 
 automatically-unhide-macos-hidden-apps = true
+
+# The picker is a borderless panel, which AeroSpace should leave alone on its
+# own -- but "should" is not a contract, and a tiled full-screen overlay would
+# be a mess to get out of. Name it explicitly.
+[[on-window-detected]]
+    if.app-id = 'dev.omarchy-mac.picker'
+    run = 'layout floating'
 
 [key-mapping]
     preset = 'qwerty'
@@ -116,8 +125,10 @@ automatically-unhide-macos-hidden-apps = true
     alt-slash      = 'exec-and-forget /usr/bin/python3 __HOME__/.config/sketchybar/plugins-omarchy/display.py up'
     alt-ctrl-slash = 'exec-and-forget /usr/bin/python3 __HOME__/.config/sketchybar/plugins-omarchy/display.py down'
 
-    # Theme menu — Omarchy SUPER+SHIFT+CTRL+SPACE
+    # Theme picker — Omarchy SUPER+SHIFT+CTRL+SPACE
     alt-ctrl-shift-space = 'exec-and-forget __HOME__/.local/bin/theme_menu.sh'
+    # Background picker — Omarchy SUPER+CTRL+SPACE
+    alt-ctrl-space       = 'exec-and-forget __HOME__/.local/bin/bg_menu.sh'
 
     # Modes
     alt-r               = 'mode resize'

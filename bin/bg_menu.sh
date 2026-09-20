@@ -6,6 +6,22 @@
 BIN="$HOME/.local/bin"
 PICKER="$HOME/.local/share/omarchy-mac/OmarchyPicker.app/Contents/MacOS/omarchy-picker"
 
+# AeroSpace follows macOS focus. Close the picker on a workspace that has no
+# windows of its own and macOS has nothing there to focus, so it hands focus to
+# some app on another workspace and AeroSpace goes with it -- you pick a theme
+# on an empty workspace 3 and land on 1. Remember where we were and come back.
+# (Absolute fallback: a script launched from Raycast or the bar does not get
+# your shell's PATH.)
+AEROSPACE=$(command -v aerospace || echo /opt/homebrew/bin/aerospace)
+ws_before=""
+[ -x "$AEROSPACE" ] && ws_before=$("$AEROSPACE" list-workspaces --focused </dev/null 2>/dev/null)
+
+restore_workspace() {
+  [ -n "$ws_before" ] || return 0
+  ws_now=$("$AEROSPACE" list-workspaces --focused </dev/null 2>/dev/null)
+  [ "$ws_now" = "$ws_before" ] || "$AEROSPACE" workspace "$ws_before" </dev/null 2>/dev/null
+}
+
 source "$HOME/.config/sketchybar/theme.sh" 2>/dev/null
 theme=$(python3 "$BIN/theme.py" current)
 
@@ -25,4 +41,6 @@ choice=$(python3 "$BIN/theme.py" rows backgrounds "$theme" | "$PICKER" \
   --background "${BG:-0xff101315}" --foreground "${FG:-0xffcacccc}" \
   --accent "${ACCENT:-0xff798186}" --dark-background "${DARKBG:-0xff0c0e10}")
 
-[ $? -eq 0 ] && [ -n "$choice" ] && python3 "$BIN/theme.py" bg set "$choice"
+rc=$?
+[ $rc -eq 0 ] && [ -n "$choice" ] && python3 "$BIN/theme.py" bg set "$choice"
+restore_workspace

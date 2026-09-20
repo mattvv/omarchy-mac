@@ -6,6 +6,22 @@
 BIN="$HOME/.local/bin"
 PICKER="$HOME/.local/share/omarchy-mac/OmarchyPicker.app/Contents/MacOS/omarchy-picker"
 
+# AeroSpace follows macOS focus. Close the picker on a workspace that has no
+# windows of its own and macOS has nothing there to focus, so it hands focus to
+# some app on another workspace and AeroSpace goes with it -- you pick a theme
+# on an empty workspace 3 and land on 1. Remember where we were and come back.
+# (Absolute fallback: a script launched from Raycast or the bar does not get
+# your shell's PATH.)
+AEROSPACE=$(command -v aerospace || echo /opt/homebrew/bin/aerospace)
+ws_before=""
+[ -x "$AEROSPACE" ] && ws_before=$("$AEROSPACE" list-workspaces --focused </dev/null 2>/dev/null)
+
+restore_workspace() {
+  [ -n "$ws_before" ] || return 0
+  ws_now=$("$AEROSPACE" list-workspaces --focused </dev/null 2>/dev/null)
+  [ "$ws_now" = "$ws_before" ] || "$AEROSPACE" workspace "$ws_before" </dev/null 2>/dev/null
+}
+
 # Picker chrome is drawn in the theme you are currently wearing.
 source "$HOME/.config/sketchybar/theme.sh" 2>/dev/null
 current=$(python3 "$BIN/theme.py" current)
@@ -45,10 +61,17 @@ choice=$(python3 "$BIN/theme.py" rows themes | "$PICKER" \
   --accent "${ACCENT:-0xff798186}" --dark-background "${DARKBG:-0xff0c0e10}")
 rc=$?
 
-[ -z "$choice" ] && exit 0
+if [ -z "$choice" ]; then
+  restore_workspace
+  exit 0
+fi
+
 case $rc in
-  0) python3 "$BIN/theme.py" set "$choice" >/dev/null ;;
+  0) python3 "$BIN/theme.py" set "$choice" >/dev/null; restore_workspace ;;
   # ⌘B: wear the theme first, then go straight into its backgrounds -- picking
-  # a background for a theme you are not looking at makes no sense.
-  3) python3 "$BIN/theme.py" set "$choice" >/dev/null; exec "$BIN/bg_menu.sh" ;;
+  # a background for a theme you are not looking at makes no sense. Restore
+  # before handing over, or bg_menu.sh inherits the wrong idea of "here".
+  3) python3 "$BIN/theme.py" set "$choice" >/dev/null; restore_workspace
+     exec "$BIN/bg_menu.sh" ;;
+  *) restore_workspace ;;
 esac

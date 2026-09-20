@@ -106,6 +106,18 @@ Each of these cost real time to diagnose. Don't repeat them.
 - **Quickshell is Linux/BSD only.** Omarchy's picker is a Quickshell plugin whose overlay
   is a wlroots layer-shell surface. There is no macOS build and no equivalent protocol —
   don't go looking for one. `bin/omarchy-picker.swift` reimplements the design in AppKit.
+- **A GUI launch gets none of your shell.** Raycast, sketchybar click scripts and
+  AeroSpace `exec-and-forget` run with a bare PATH: Homebrew is not on it, and `python3`
+  resolves to **`/usr/bin/python3`, which is 3.9** — so `import tomllib` (3.11+) raised
+  `ModuleNotFoundError` and `theme.py` died before doing anything. It tests clean from a
+  terminal and fails from every button. Reproduce it with
+  `env -i HOME="$HOME" PATH=/usr/bin:/bin /bin/bash <script>`, and resolve `sketchybar`,
+  `borders`, `pgrep` and `osascript` through `tool()` rather than naming them bare.
+- **Closing a window on an empty AeroSpace workspace moves you.** With nothing left to
+  focus, macOS hands focus to an app on another workspace and AeroSpace follows — open the
+  picker on an empty workspace 3 and closing it drops you on 1. The wrappers record
+  `aerospace list-workspaces --focused` before opening and return to it afterwards; the
+  picker also hands focus back to whatever app it interrupted.
 - **A theme switch must also set macOS appearance** (`System Events` → `appearance
   preferences` → `dark mode`). Config files alone leave browsers and native apps wrong.
 

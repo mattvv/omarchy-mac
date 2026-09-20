@@ -19,7 +19,12 @@ themes/<name>/colors.toml, vendored under themes/.
   theme.py raycast [dir]        (re)generate the Raycast script commands
 """
 from __future__ import annotations
-import json, os, re, subprocess, sys, time, tomllib, urllib.request
+import json, os, re, shutil, subprocess, sys, time, urllib.request
+
+try:
+    import tomllib                # 3.11+
+except ModuleNotFoundError:       # macOS still ships 3.9 as /usr/bin/python3,
+    tomllib = None                # which is what a GUI launch often resolves to
 from pathlib import Path
 
 HOME = Path.home()
@@ -56,6 +61,42 @@ BG_STATE   = STATE / "backgrounds.json"
 IMAGE_EXT = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".heic")
 
 
+def parse_palette(text: str) -> dict:
+    """The vendored palettes are flat `key = "value"` -- every line of all 22 of
+    them. Reading those by hand costs nothing and drops a Python 3.11 floor that
+    a script launched from Raycast, sketchybar or AeroSpace cannot count on."""
+    if tomllib is not None:
+        return tomllib.loads(text)
+    out = {}
+    for line in text.splitlines():
+        m = re.match(r'\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"(.*)"\s*$', line)
+        if m:
+            out[m.group(1)] = m.group(2)
+    return out
+
+
+def tool(name: str) -> str | None:
+    """Homebrew is not on the default PATH, and a GUI launch does not inherit
+    your shell's. Missing is survivable -- a theme still applies without the
+    bar -- so callers skip rather than crash."""
+    found = shutil.which(name)
+    if found:
+        return found
+    for base in ("/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"):
+        candidate = os.path.join(base, name)
+        if os.path.exists(candidate):
+            return candidate
+    return None
+
+
+def osa(*script: str):
+    binary = tool("osascript") or "/usr/bin/osascript"
+    args = [binary]
+    for line in script:
+        args += ["-e", line]
+    return subprocess.run(args, capture_output=True)
+
+
 def hex6(v: str) -> str:
     return (v or "").strip().lstrip("#")[:6] or "000000"
 
@@ -68,14 +109,14 @@ def load(name: str) -> dict:
     p = THEMES / f"{name}.toml"
     if not p.exists():
         sys.exit(f"unknown theme: {name}  (try: theme.py list)")
-    return tomllib.loads(p.read_text())
+    return parse_palette(p.read_text())
 
 
 def themes() -> list[tuple[str, str]]:
     out = []
     for p in sorted(THEMES.glob("*.toml")):
         try:
-            out.append((p.stem, tomllib.loads(p.read_text()).get("mode", "dark")))
+            out.append((p.stem, parse_palette(p.read_text()).get("mode", "dark")))
         except Exception:
             out.append((p.stem, "dark"))
     return out
@@ -245,9 +286,8 @@ def set_desktop_picture(path: Path):
     # A path is data, not script: a quote or backslash in a filename would
     # otherwise end the AppleScript string early.
     quoted = str(path).replace("\\", "\\\\").replace('"', '\\"')
-    subprocess.run(["osascript", "-e",
-                    'tell application "System Events" to set picture of '
-                    f'every desktop to "{quoted}"'], capture_output=True)
+    osa('tell application "System Events" to set picture of '
+        f'every desktop to "{quoted}"')
 
 
 def set_bg(path: Path, theme: str | None = None):
@@ -293,10 +333,8 @@ def set_appearance(mode: str):
     all key off the system appearance, not off our generated config files.
     """
     dark = "false" if mode == "light" else "true"
-    subprocess.run(["osascript", "-e",
-                    "tell application \"System Events\" to tell appearance "
-                    f"preferences to set dark mode to {dark}"],
-                   capture_output=True)
+    osa("tell application \"System Events\" to tell appearance "
+        f"preferences to set dark mode to {dark}")
 
 
 def reload_terminals():
@@ -311,11 +349,10 @@ def reload_terminals():
     wz = Path.home() / ".wezterm.lua"
     if wz.exists():
         wz.touch()
-    if subprocess.run(["pgrep", "-x", "ghostty"], capture_output=True).returncode == 0:
-        subprocess.run(["osascript", "-e",
-                        'tell application "System Events" to tell process "Ghostty" '
-                        'to keystroke "," using {command down, shift down}'],
-                       capture_output=True)
+    pgrep = tool("pgrep")
+    if pgrep and subprocess.run([pgrep, "-x", "ghostty"], capture_output=True).returncode == 0:
+        osa('tell application "System Events" to tell process "Ghostty" '
+            'to keystroke "," using {command down, shift down}')
 
 
 def apply(name):
@@ -327,17 +364,23 @@ def apply(name):
     wallpaper(name)
 
     act, inact = border_pair(c)
-    subprocess.run(["pkill", "-x", "borders"], capture_output=True)
+    pkill, borders_bin = tool("pkill"), tool("borders")
+    if pkill and borders_bin:
+        subprocess.run([pkill, "-x", "borders"], capture_output=True)
     # start_new_session: this often runs from a sketchybar click_script, and
     # the pkill below kills that script's parent. Without a new session the
     # replacement processes get torn down with it.
-    subprocess.Popen(["borders", f"active_color={act}", f"inactive_color={inact}", "width=4.0"],
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        subprocess.Popen([borders_bin, f"active_color={act}", f"inactive_color={inact}",
+                          "width=4.0"],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
     # `--reload` re-executes sketchybarrc in place, which re-sources theme.sh.
     # Killing and respawning races sketchybar's lock file: the replacement
     # bails with "could not acquire lock-file" and the old, stale-themed
     # instance survives -- the bar then sits one theme behind.
-    subprocess.run(["sketchybar", "--reload"], capture_output=True)
+    sketchybar = tool("sketchybar")
+    if sketchybar:
+        subprocess.run([sketchybar, "--reload"], capture_output=True)
     reload_terminals()
     print(name)
 

@@ -18,6 +18,7 @@
   "trigger":{"icon":"󱓞", "label":"Trigger", "aliases":["capture","screenshot"]},
   "setup":  {"icon":"", "label":"Setup", "aliases":["settings","config"]},
   "update": {"icon":"", "label":"Update", "aliases":["upgrade"]},
+  "install":{"icon":"󰉉", "label":"Install", "aliases":["add","brew"]},
   "learn":  {"icon":"󰧑", "label":"Learn"},
   "system": {"icon":"", "label":"System", "aliases":["power"]},
 
@@ -123,6 +124,32 @@
   // pretending to set it.
   "update.time":     {"icon":"", "label":"Date & Time", "aliases":["timezone","clock"],
                        "action":"open x-apple.systempreferences:com.apple.Date-Time-Settings.extension"},
+
+  // ── Install ───────────────────────────────────────────────────────────────
+  // Upstream's install group is 91 entries of pacman and AUR. Almost none of it
+  // has a macOS counterpart; what does is a cask, and the fonts are the part
+  // that matters here because the menu offers only fonts you already have.
+  // A tick means the family is already on the machine -- read from the font
+  // files rather than asking brew, which would be six subprocesses per open.
+  "install.font": {"icon":"", "label":"Install font"},
+  "install.font.cascadia": {"icon":"", "label":"Cascadia Mono",
+                          "checked":"$OMARCHY_BIN/fonts.py has Caskaydia",
+                          "action":"/Applications/Ghostty.app/Contents/MacOS/ghostty -e /bin/bash -lc 'brew install --cask font-caskaydia-mono-nerd-font; echo; echo Press return to close.; read -r _'"},
+  "install.font.meslo": {"icon":"", "label":"Meslo LG",
+                          "checked":"$OMARCHY_BIN/fonts.py has MesloLG",
+                          "action":"/Applications/Ghostty.app/Contents/MacOS/ghostty -e /bin/bash -lc 'brew install --cask font-meslo-lg-nerd-font; echo; echo Press return to close.; read -r _'"},
+  "install.font.fira": {"icon":"", "label":"Fira Code",
+                          "checked":"$OMARCHY_BIN/fonts.py has FiraCode",
+                          "action":"/Applications/Ghostty.app/Contents/MacOS/ghostty -e /bin/bash -lc 'brew install --cask font-fira-code-nerd-font; echo; echo Press return to close.; read -r _'"},
+  "install.font.victor": {"icon":"", "label":"Victor Mono",
+                          "checked":"$OMARCHY_BIN/fonts.py has VictorMono",
+                          "action":"/Applications/Ghostty.app/Contents/MacOS/ghostty -e /bin/bash -lc 'brew install --cask font-victor-mono-nerd-font; echo; echo Press return to close.; read -r _'"},
+  "install.font.bitstream": {"icon":"", "label":"Bitstream Vera Mono",
+                          "checked":"$OMARCHY_BIN/fonts.py has Bitstrom",
+                          "action":"/Applications/Ghostty.app/Contents/MacOS/ghostty -e /bin/bash -lc 'brew install --cask font-bitstream-vera-sans-mono-nerd-font; echo; echo Press return to close.; read -r _'"},
+  "install.font.iosevka": {"icon":"", "label":"Iosevka",
+                          "checked":"$OMARCHY_BIN/fonts.py has Iosevka",
+                          "action":"/Applications/Ghostty.app/Contents/MacOS/ghostty -e /bin/bash -lc 'brew install --cask font-iosevka-nerd-font; echo; echo Press return to close.; read -r _'"},
 
   // ── Learn ─────────────────────────────────────────────────────────────────
   "learn.keybindings": {"icon":"", "label":"Keybindings", "aliases":["keys","bindings"],

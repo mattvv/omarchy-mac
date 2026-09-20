@@ -63,7 +63,10 @@ Omarchy's `SUPER` maps to **Option (⌥)**, not Command. Using ⌘ would clobber
 | `⌥⇧M` | music | `SUPER+SHIFT+M` |
 | `⌥⇧F` | file manager | `SUPER+SHIFT+F` |
 | `⌥⇧/` | passwords | `SUPER+SHIFT+SLASH` |
-| `⌥Space` | launcher | `SUPER+SPACE` |
+| `⌘Space` | the Omarchy menu | `SUPER+ALT+SPACE` |
+| `⌥O` | the Omarchy menu | — |
+| `⌥K` | keybindings reference | — |
+| `⌥Space` | Raycast | `SUPER+SPACE` |
 | `⌥⌃⇧Space` | theme picker | `SUPER+SHIFT+CTRL+SPACE` |
 | `⌥⌃Space` | background picker | `SUPER+CTRL+SPACE` |
 | `⌥⇧Space` | toggle the bar | `SUPER+SHIFT+SPACE` |
@@ -76,6 +79,46 @@ VoiceOver — clear it in System Settings → Keyboard → Shortcuts → Input S
 
 `⌥Return` is registered by **Ghostty itself** (`keybind = global:alt+enter=new_window`),
 not AeroSpace — see Notes.
+
+## The menu
+
+Omarchy runs two launchers: **walker** opens apps, and **`omarchy-menu`** holds system
+actions. Only the first maps to Raycast. The second is this:
+
+```
+⌘Space        Style  ›  Theme · Background · Font · Menu Bar
+              Trigger › Screenshot · Screen recording · Colour picker · Stay awake
+              Setup   › Configs · Displays · Keyboard · Trackpad · DNS
+              Update  › Update omarchy-mac · Reinstall config · Date & Time
+              Install › Fonts
+              Learn   › Keybindings · Docs
+              System  › Screensaver · Lock · Suspend · Logout · Reboot · Shutdown
+```
+
+Typing searches **everything** — the whole tree and every installed application — because
+`⌘Space` is where you already reach for the launcher. `back` finds *Style › Background*;
+`ghost` finds Ghostty. Escape clears the query, then goes up a level, then closes.
+
+The menu is defined in `config/menu.jsonc` using upstream's schema: dotted ids imply
+hierarchy, an `action` runs and anything else is a submenu, and a `checked` command puts a
+tick on a row. Rows carry live state — Stay awake shows whether the assertion is up, DNS
+shows which resolver is in use, Font shows which one is set.
+
+**Only entries whose actions work on macOS are in the file.** Night Shift, Focus and the
+default browser have no supported CLI, so they have no rows rather than rows that do
+nothing. `dev-notes/menu-plan.md` maps all 340 of upstream's entries and says which are
+not coming, and why.
+
+### Keybindings reference
+
+`⌥K` lists every binding read from your own `~/.aerospace.toml`, plus Ghostty's global
+hotkey, with chords rendered in macOS order (`alt-ctrl-shift-space` → `⌃⌥⇧Space`) and
+descriptions derived from the commands rather than a table keyed on chords, which would
+rot the moment you rebind something.
+
+It is a reference card: picking a row does **not** run the binding, which is a deliberate
+divergence from upstream. Once the overlay closes, `close` would act on whatever gained
+focus and `mode resize` would strand you in a mode with nothing on screen to say so.
 
 ## The bar
 

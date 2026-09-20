@@ -110,6 +110,19 @@ def families() -> list:
     return sorted(found.items())
 
 
+def installed(needle: str) -> bool:
+    """Is a family whose name contains this present?
+
+    Used for the install rows' ticks. `brew list --cask` would answer it too,
+    but six of those on every menu open is six subprocesses and a second of
+    waiting; the font files are already being read."""
+    needle = needle.lower()
+    return any(needle in name.lower() for name, _ in families())
+
+
 if __name__ == "__main__":
+    import sys
+    if len(sys.argv) > 2 and sys.argv[1] == "has":
+        sys.exit(0 if installed(sys.argv[2]) else 1)
     for name, path in families():
         print(f"{name}\t{path}")

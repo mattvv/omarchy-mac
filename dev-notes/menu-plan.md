@@ -123,9 +123,13 @@ Shutdown works is a test you run once.
 
 ## P6 — install / remove  (upstream: 155 entries, mostly pacman)
 
-- [ ] `install.package` → `brew install` with a search prompt
-- [ ] `install.style.font` → `brew install --cask font-*` for the six upstream fonts
-- [ ] A curated subset of browsers/services that exist as casks
+- [ ] `install.package` → not done. A menu is not a package manager: free-text search
+      belongs in a terminal, and `brew search` in an overlay would be a worse `brew`.
+- [x] `install.font.*` → the six upstream fonts as casks, each verified to exist in
+      brew. A tick means the family is already on the machine, read from the font
+      files rather than asking brew six times per menu open.
+- [ ] Browsers and services as casks — deferred. The fonts were the part that
+      mattered, because the font picker only offers what is installed.
 - [ ] Everything AUR/pacman-only: **not ported**, documented as such
 
 ## P7 — update  (upstream: 27 entries)

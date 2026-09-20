@@ -648,6 +648,13 @@ final class MenuInput: NSObject, NSSearchFieldDelegate {
         field.focusRingType = .none
         field.isBezeled = false
         field.drawsBackground = false
+        // The bezel is what positions a search field's built-in magnifier and
+        // cancel button. Remove the bezel and they land on top of the text, so
+        // take them out and draw the glyph ourselves at a known offset.
+        if let cell = field.cell as? NSSearchFieldCell {
+            cell.searchButtonCell = nil
+            cell.cancelButtonCell = nil
+        }
     }
 
     func controlTextDidChange(_ notification: Notification) {
@@ -703,6 +710,7 @@ final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     let card = NSView()
     let title = NSTextField(labelWithString: "")
     let separator = NSView()
+    let searchIcon = NSTextField(labelWithString: "")
     let hint = NSTextField(labelWithString: "")
 
     init(opts: Options, frame: NSRect, scale: CGFloat) {
@@ -728,7 +736,8 @@ final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         card.frame = NSRect(x: (bounds.width - w) / 2, y: (bounds.height - h) / 2,
                             width: w, height: h)
         title.frame = NSRect(x: 20 * s, y: h - 30 * s, width: w - 40 * s, height: 16 * s)
-        input.field.frame = NSRect(x: 14 * s, y: h - 68 * s, width: w - 28 * s, height: 30 * s)
+        searchIcon.frame = NSRect(x: 16 * s, y: h - 63 * s, width: 22 * s, height: 20 * s)
+        input.field.frame = NSRect(x: 42 * s, y: h - 68 * s, width: w - 56 * s, height: 30 * s)
         separator.frame = NSRect(x: 0, y: h - 76 * s, width: w, height: 1)
         scroll.frame = NSRect(x: 8 * s, y: 40 * s, width: w - 16 * s, height: h - 120 * s)
         hint.frame = NSRect(x: 0, y: 14 * s, width: w, height: 14 * s)
@@ -749,9 +758,13 @@ final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         title.frame = NSRect(x: 20 * s, y: h - 30 * s, width: w - 40 * s, height: 16 * s)
         card.addSubview(title)
 
+        searchIcon.stringValue = "􀊫"
+        searchIcon.font = .systemFont(ofSize: 15 * s)
+        searchIcon.textColor = hexColor(opts.foreground, alpha: 0.35)
+        card.addSubview(searchIcon)
+
         input.field.font = .systemFont(ofSize: 19 * s)
         input.field.textColor = hexColor(opts.foreground)
-        input.field.frame = NSRect(x: 14 * s, y: h - 68 * s, width: w - 28 * s, height: 30 * s)
         card.addSubview(input.field)
 
         separator.frame = NSRect(x: 0, y: h - 76 * s, width: w, height: 1)

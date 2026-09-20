@@ -49,7 +49,7 @@
                          "action":"$OMARCHY_BIN/stay_awake.sh toggle"},
 
   // ── Learn ─────────────────────────────────────────────────────────────────
-  "learn.keybindings": {"icon":"", "label":"Keybindings", "aliases":["keys","bindings"],
+  "learn.keybindings": {"icon":"", "label":"Keybindings", "aliases":["keys","bindings"],
                         "action":"$OMARCHY_BIN/keybindings_menu.sh"},
   "learn.omarchy":     {"icon":"", "label":"Omarchy",
                         "action":"open https://omarchy.org"},

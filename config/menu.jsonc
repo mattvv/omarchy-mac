@@ -17,6 +17,7 @@
   "style":  {"icon":"", "label":"Style",  "aliases":["appearance"]},
   "trigger":{"icon":"󱓞", "label":"Trigger", "aliases":["capture","screenshot"]},
   "setup":  {"icon":"", "label":"Setup", "aliases":["settings","config"]},
+  "update": {"icon":"", "label":"Update", "aliases":["upgrade"]},
   "learn":  {"icon":"󰧑", "label":"Learn"},
   "system": {"icon":"", "label":"System", "aliases":["power"]},
 
@@ -100,6 +101,28 @@
   "style.bar.transparency.transparent": {"icon":"󰂵", "label":"Transparent",
                              "checked":"$OMARCHY_BIN/bar.sh is-alpha 66",
                              "action":"$OMARCHY_BIN/bar.sh transparent"},
+
+  // ── Update ────────────────────────────────────────────────────────────────
+  // Upstream updates Omarchy itself and re-lays its configs. Same here, from
+  // whichever checkout install.sh ran from -- recorded at install time rather
+  // than guessed.
+  "update.omarchy":  {"icon":"•", "label":"Update omarchy-mac", "aliases":["upgrade","pull"],
+                       "action":"$OMARCHY_BIN/update.sh omarchy"},
+  "update.config":   {"icon":"", "label":"Reinstall config"},
+  "update.config.aerospace":  {"icon":"", "label":"AeroSpace",
+                       "action":"$OMARCHY_BIN/update.sh config aerospace"},
+  "update.config.ghostty":    {"icon":"", "label":"Ghostty",
+                       "action":"$OMARCHY_BIN/update.sh config ghostty"},
+  "update.config.wezterm":    {"icon":"", "label":"WezTerm",
+                       "action":"$OMARCHY_BIN/update.sh config wezterm"},
+  "update.config.sketchybar": {"icon":"󰍜", "label":"Bar",
+                       "action":"$OMARCHY_BIN/update.sh config sketchybar"},
+  "update.config.menu":       {"icon":"", "label":"Menu",
+                       "action":"$OMARCHY_BIN/update.sh config menu"},
+  // systemsetup -settimezone needs root, so this opens the pane instead of
+  // pretending to set it.
+  "update.time":     {"icon":"", "label":"Date & Time", "aliases":["timezone","clock"],
+                       "action":"open x-apple.systempreferences:com.apple.Date-Time-Settings.extension"},
 
   // ── Learn ─────────────────────────────────────────────────────────────────
   "learn.keybindings": {"icon":"", "label":"Keybindings", "aliases":["keys","bindings"],

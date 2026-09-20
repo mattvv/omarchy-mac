@@ -75,6 +75,9 @@ else
   echo "  no swiftc found (xcode-select --install) -- the list menu will be used instead"
 fi
 
+# Where this was installed from, so the Update menu can come back to it.
+printf '%s\n' "$REPO" > "$HOME/.local/share/omarchy-mac/repo"
+
 say "Generating Raycast script commands"
 python3 "$HOME/.local/bin/theme.py" raycast >/dev/null
 

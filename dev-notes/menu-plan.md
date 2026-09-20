@@ -130,9 +130,13 @@ Shutdown works is a test you run once.
 
 ## P7 — update  (upstream: 27 entries)
 
-- [ ] `update.omarchy` → `git pull` + `./install.sh` in this repo
-- [ ] `update.config.*` → re-copy one config from the repo
-- [ ] `update.timezone` / `update.time` → `systemsetup`
+- [x] `update.omarchy` → `git pull` + `./install.sh` in the checkout install.sh ran
+      from (recorded at install time), in a visible Ghostty window — an update that
+      fails quietly is worse than one that never ran
+- [x] `update.config.*` → reinstall AeroSpace, Ghostty, WezTerm, bar or menu config
+      from the repo, with the same `__HOME__` substitution install.sh does
+- [x] `update.time` → opens the Date & Time pane. `systemsetup -settimezone` needs
+      root, so setting it from a menu would just fail silently.
 - [ ] `update.hardware.*` → N/A (macOS manages its own drivers)
 
 ## Not ported, and why

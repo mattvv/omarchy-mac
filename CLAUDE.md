@@ -82,6 +82,15 @@ Each of these cost real time to diagnose. Don't repeat them.
 - **`sketchybar --query` silently omits** `background`, popup `drawing`, `notch_width`
   **and `click_script`** — no item reports a click script, whether it has one or not.
   Absence there is not evidence of failure; verify the rc file instead.
+- **Switching DNS repeatedly in quick succession wedges the resolver.** One
+  `networksetup -setdnsservers` change settles by itself in a second or two — verified.
+  Three of them inside two seconds left `mDNSResponder` holding the old configuration:
+  `dig @8.8.8.8` still answered and `ping 1.1.1.1` still worked, but every *name* lookup
+  on the machine failed, `git push` included. `dscacheutil -flushcache` without root is a
+  no-op and `killall -HUP mDNSResponder` cannot touch a root-owned process, so the
+  documented fix needs sudo — **but cycling Wi-Fi clears it without any**:
+  `networksetup -setairportpower en0 off`, wait, `on`. Do not test DNS presets by flipping
+  through them.
 - **`pkill -f <pattern>` matches the shell that runs it.** A toggle written as
   `pgrep -f 'caffeinate -dimsu' && pkill -f 'caffeinate -dimsu' || …` has the pattern in
   its own `bash -c` argv, so it kills itself — the menu action exited 144 and took its

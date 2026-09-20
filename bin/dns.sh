@@ -31,6 +31,10 @@ case "${1:-status}" in
       google)     networksetup -setdnsservers "$svc" 8.8.8.8 8.8.4.4 ;;
       quad9)      networksetup -setdnsservers "$svc" 9.9.9.9 149.112.112.112 ;;
     esac
+    # Best effort, and it is not root so it cannot restart mDNSResponder -- but
+    # a single change settles on its own within a second or two. See the trap in
+    # CLAUDE.md about switching repeatedly in quick succession.
+    dscacheutil -flushcache >/dev/null 2>&1
     echo "$svc -> $1" ;;
   *)
     echo "usage: dns.sh [status|dhcp|cloudflare|google|quad9]" >&2; exit 2 ;;

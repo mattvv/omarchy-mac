@@ -1,0 +1,65 @@
+# Omarchy-flavored Ghostty — Solitude theme
+# Based on omarchy config/ghostty/config, minus Linux-only options
+# (gtk-toolbar-style, async-backend=epoll, window-theme=ghostty).
+
+# ── Solitude palette ──────────────────────────────────────────────────────────
+background = 080a0b
+foreground = cacccc
+cursor-color = 798186
+cursor-text = 101315
+selection-background = 343d41
+selection-foreground = cacccc
+
+palette = 0=#0c0e10
+palette = 1=#565d60
+palette = 2=#9fa5a9
+palette = 3=#d9dbdc
+palette = 4=#798186
+palette = 5=#aeaeae
+palette = 6=#707070
+palette = 7=#cacccc
+palette = 8=#4b4e55
+palette = 9=#de6145
+palette = 10=#343d41
+palette = 11=#c9c2b4
+palette = 12=#5d6367
+palette = 13=#9a9a9a
+palette = 14=#707070
+palette = 15=#cbc2be
+
+# ── Font (Hack Nerd Font — user preference over Omarchy default) ─────────────
+font-family = "Hack Nerd Font"
+font-style = Regular
+font-size = 16
+
+# ── Window (Omarchy padding, macOS titlebar) ─────────────────────────────────
+window-padding-x = 14
+window-padding-y = 14
+window-padding-balance = true
+macos-titlebar-style = hidden
+background-opacity = 0.9
+confirm-close-surface = false
+resize-overlay = never
+
+# ── Cursor (Omarchy) ──────────────────────────────────────────────────────────
+cursor-style = block
+cursor-style-blink = false
+shell-integration-features = no-cursor,ssh-env
+
+# ── Keybindings (from Omarchy) ───────────────────────────────────────────────
+keybind = shift+insert=paste_from_clipboard
+keybind = control+insert=copy_to_clipboard
+# Send Shift+Enter as CSI-u so TUIs can distinguish it from Enter.
+keybind = shift+enter=csi:13;2u
+# Legacy encoding sends Alt+Shift+Enter the same as Alt+Enter; send CSI-u so tmux can match M-S-Enter.
+keybind = alt+shift+enter=csi:13;4u
+
+# Ghostty owns this hotkey itself. AeroSpace cannot open a new Ghostty window
+# (no macOS CLI for it: `+new-window` is Linux-only, `open -na` spawns a second
+# instance, and AppleScript keystroke needs an Automation grant it can't prompt
+# for from a background exec). A global: keybind sidesteps all of that.
+keybind = global:alt+enter=new_window
+
+# ── Misc (Omarchy) ────────────────────────────────────────────────────────────
+mouse-scroll-multiplier = 0.95
+copy-on-select = clipboard

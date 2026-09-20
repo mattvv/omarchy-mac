@@ -1,0 +1,150 @@
+# AeroSpace — Omarchy-flavored, Solitude theme
+# Omarchy's SUPER is mapped to `alt` here: using cmd would clobber macOS
+# shortcuts (cmd-w/t/f/s/l/1-9) in every app.
+
+after-startup-command = [
+'exec-and-forget sketchybar',
+'exec-and-forget borders active_color=gradient(top_left=0xff798186,bottom_right=0xffcacccc) inactive_color=0xff1e1e1e width=4.0'
+]
+
+# Notify Sketchybar about workspace change
+exec-on-workspace-change = ['/bin/bash', '-c',
+    'sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE'
+]
+
+start-at-login = true
+
+enable-normalization-flatten-containers = true
+enable-normalization-opposite-orientation-for-nested-containers = true
+
+# How many px of the adjacent windows stay visible in accordion ("scrolling")
+# layout. This is the closest AeroSpace gets to Hyprland's scrolling peek.
+accordion-padding = 80
+
+default-root-container-layout = 'tiles'
+default-root-container-orientation = 'auto'
+
+on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
+
+automatically-unhide-macos-hidden-apps = true
+
+[key-mapping]
+    preset = 'qwerty'
+
+[gaps]
+    inner.horizontal = 12
+    inner.vertical =   12
+    outer.left =       12
+    outer.bottom =     12
+    outer.top =        24
+    outer.right =      12
+
+[mode.main.binding]
+
+    # Focus window — Omarchy SUPER + arrows
+    alt-left  = 'focus left'
+    alt-right = 'focus right'
+    alt-up    = 'focus up'
+    alt-down  = 'focus down'
+
+    # Swap window — Omarchy SUPER + SHIFT + arrows
+    alt-shift-left  = 'move left'
+    alt-shift-right = 'move right'
+    alt-shift-up    = 'move up'
+    alt-shift-down  = 'move down'
+
+    # Window operations
+    alt-w = ['close', 'exec-and-forget /opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change']                             # SUPER + W  close window
+    alt-f = 'macos-native-fullscreen'           # SUPER + F  full screen
+    alt-t = 'layout floating tiling'            # SUPER + T  toggle float/tile
+    alt-j = 'layout tiles horizontal vertical'  # SUPER + J  toggle split
+    alt-l = 'exec-and-forget __HOME__/.config/sketchybar/plugins-omarchy/layout_toggle.sh'  # SUPER + L  dwindle <-> scrolling
+
+    # Workspaces — Omarchy SUPER + 1..0
+    alt-1 = 'workspace 1'
+    alt-2 = 'workspace 2'
+    alt-3 = 'workspace 3'
+    alt-4 = 'workspace 4'
+    alt-5 = 'workspace 5'
+    alt-6 = 'workspace 6'
+    alt-7 = 'workspace 7'
+    alt-8 = 'workspace 8'
+    alt-9 = 'workspace 9'
+    alt-0 = 'workspace 10'
+
+    # Move window to workspace — Omarchy SUPER + SHIFT + 1..0
+    alt-shift-1 = 'move-node-to-workspace --focus-follows-window 1'
+    alt-shift-2 = 'move-node-to-workspace --focus-follows-window 2'
+    alt-shift-3 = 'move-node-to-workspace --focus-follows-window 3'
+    alt-shift-4 = 'move-node-to-workspace --focus-follows-window 4'
+    alt-shift-5 = 'move-node-to-workspace --focus-follows-window 5'
+    alt-shift-6 = 'move-node-to-workspace --focus-follows-window 6'
+    alt-shift-7 = 'move-node-to-workspace --focus-follows-window 7'
+    alt-shift-8 = 'move-node-to-workspace --focus-follows-window 8'
+    alt-shift-9 = 'move-node-to-workspace --focus-follows-window 9'
+    alt-shift-0 = 'move-node-to-workspace --focus-follows-window 10'
+
+    # Move window SILENTLY to workspace — Omarchy SUPER + SHIFT + ALT + 1..0
+    alt-ctrl-shift-1 = ['move-node-to-workspace 1', 'exec-and-forget /opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change']
+    alt-ctrl-shift-2 = ['move-node-to-workspace 2', 'exec-and-forget /opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change']
+    alt-ctrl-shift-3 = ['move-node-to-workspace 3', 'exec-and-forget /opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change']
+    alt-ctrl-shift-4 = ['move-node-to-workspace 4', 'exec-and-forget /opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change']
+    alt-ctrl-shift-5 = ['move-node-to-workspace 5', 'exec-and-forget /opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change']
+    alt-ctrl-shift-6 = ['move-node-to-workspace 6', 'exec-and-forget /opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change']
+    alt-ctrl-shift-7 = ['move-node-to-workspace 7', 'exec-and-forget /opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change']
+    alt-ctrl-shift-8 = ['move-node-to-workspace 8', 'exec-and-forget /opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change']
+    alt-ctrl-shift-9 = ['move-node-to-workspace 9', 'exec-and-forget /opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change']
+    alt-ctrl-shift-0 = ['move-node-to-workspace 10', 'exec-and-forget /opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change']
+    # Workspace navigation
+    alt-tab       = 'workspace next'            # SUPER + TAB
+    alt-shift-tab = 'workspace prev'            # SUPER + SHIFT + TAB
+    alt-ctrl-tab  = 'workspace-back-and-forth'  # SUPER + CTRL + TAB
+
+    # Applications — Omarchy applications.lua
+    alt-shift-enter = 'exec-and-forget open -a "Brave Browser"'  # SUPER + SHIFT + RETURN
+    alt-shift-b     = 'exec-and-forget open -a "Brave Browser"'  # SUPER + SHIFT + B
+    alt-shift-n     = 'exec-and-forget open -a "Zed"'            # SUPER + SHIFT + N
+    alt-shift-m     = 'exec-and-forget open -a "Spotify"'        # SUPER + SHIFT + M
+    alt-shift-f     = 'exec-and-forget open -a "Finder"'         # SUPER + SHIFT + F
+    alt-shift-slash = 'exec-and-forget open -a "1Password"'      # SUPER + SHIFT + SLASH
+    alt-space       = 'exec-and-forget open -a "Raycast"'        # SUPER + SPACE
+
+    # Toggle the top bar — Omarchy SUPER + SHIFT + SPACE
+    alt-shift-space = 'exec-and-forget sketchybar --bar hidden=toggle'
+
+    # Display scaling — Omarchy SUPER+SLASH / SUPER+ALT+SLASH
+    alt-slash      = 'exec-and-forget /usr/bin/python3 __HOME__/.config/sketchybar/plugins-omarchy/display.py up'
+    alt-ctrl-slash = 'exec-and-forget /usr/bin/python3 __HOME__/.config/sketchybar/plugins-omarchy/display.py down'
+
+    # Modes
+    alt-r               = 'mode resize'
+    alt-shift-semicolon = 'mode service'
+
+    # Keep macOS "Hide application" disabled
+    cmd-h     = []
+    cmd-alt-h = []
+
+[mode.resize.binding]
+    h     = 'resize width -50'
+    j     = 'resize height +50'
+    k     = 'resize height -50'
+    l     = 'resize width +50'
+    minus = 'resize smart -50'
+    equal = 'resize smart +50'
+    esc   = 'mode main'
+    enter = 'mode main'
+
+[mode.service.binding]
+    esc = ['reload-config', 'mode main']
+    r = ['flatten-workspace-tree', 'mode main'] # reset layout
+    f = ['layout floating tiling', 'mode main'] # Toggle between floating and tiling layout
+    backspace = ['close-all-windows-but-current', 'mode main']
+
+    alt-shift-h = ['join-with left', 'mode main']
+    alt-shift-j = ['join-with down', 'mode main']
+    alt-shift-k = ['join-with up', 'mode main']
+    alt-shift-l = ['join-with right', 'mode main']
+
+    down = 'volume down'
+    up = 'volume up'
+    shift-down = ['volume set 0', 'mode main']

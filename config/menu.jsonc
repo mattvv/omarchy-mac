@@ -30,6 +30,8 @@
                        "action":"sketchybar --bar hidden=toggle"},
 
   // ── Learn ─────────────────────────────────────────────────────────────────
+  "learn.keybindings": {"icon":"", "label":"Keybindings", "aliases":["keys","bindings"],
+                        "action":"$OMARCHY_BIN/keybindings_menu.sh"},
   "learn.omarchy":     {"icon":"", "label":"Omarchy",
                         "action":"open https://omarchy.org"},
   "learn.aerospace":   {"icon":"", "label":"AeroSpace",

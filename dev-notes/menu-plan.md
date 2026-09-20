@@ -61,10 +61,17 @@ Shutdown works is a test you run once.
 
 ## P3 — learn  (upstream: 9 entries) — includes the keybindings app
 
-- [ ] **Keybindings viewer**: parse `~/.aerospace.toml` `[mode.*.binding]`, plus Ghostty's
-      `keybind = global:` lines and our own menu bindings; show in the list overlay,
-      searchable; picking one runs it. Upstream reads `hyprctl binds`; our source of truth
-      is the TOML, so it stays correct when the config changes.
+- [x] **Keybindings viewer** — `bin/keybindings.py` + `bin/keybindings_menu.sh`. Reads the
+      installed `~/.aerospace.toml` (82 bindings, 3 modes) and Ghostty's
+      `keybind = global:` lines; renders chords in canonical macOS order (⌃⌥⇧⌘) with
+      glyphs only where they are universally read; describes commands by *shape*, never by
+      chord, and shows anything unrecognised raw rather than guessing.
+      **It does not run what you pick** — a deliberate divergence from upstream, which
+      does. By the time the overlay closes, `close` would act on whatever gained focus and
+      `mode resize` would strand you in a mode with nothing on screen to say so. Enforced
+      in both layers: the overlay never prints a `kb:` id and `menu.py run` refuses them.
+      Raycast's hotkey is shown as an explicit *unverified* note, never as a chord —
+      it keeps it internally with nothing readable on disk.
 - [ ] Doc links: Omarchy, AeroSpace (in place of Hyprland), macOS, Neovim, Bash, Tmux
 
 ## P4 — trigger  (upstream: 46 entries)

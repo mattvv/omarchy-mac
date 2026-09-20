@@ -593,12 +593,18 @@ final class CarouselView: NSView {
 
 struct MenuRow {
     let id: String, icon: String, label: String, kind: String, aliases: String
+    // Optional trailing columns, used by the keybindings view: the chord shown
+    // right-aligned, the section it belongs to, and the raw command behind it.
+    let leading: String, group: String, detail: String
     var isSubmenu: Bool { kind == "submenu" }
+    /// Reference rows exist to be read. Nothing runs them -- see menu.py, which
+    /// refuses the same ids on its side.
+    var isReference: Bool { kind == "reference" || kind == "disabled" }
     func matches(_ q: String) -> Bool {
         if q.isEmpty { return true }
         let n = q.lowercased()
         return label.lowercased().contains(n) || id.lowercased().contains(n)
-            || aliases.lowercased().contains(n)
+            || aliases.lowercased().contains(n) || leading.lowercased().contains(n)
     }
 }
 
@@ -610,7 +616,10 @@ func parseMenuRows(_ text: String) -> [MenuRow] {
                        icon:  f.count > 1 ? f[1] : "",
                        label: f.count > 2 ? f[2] : id,
                        kind:  f.count > 3 ? f[3] : "action",
-                       aliases: f.count > 4 ? f[4] : "")
+                       aliases: f.count > 4 ? f[4] : "",
+                       leading: f.count > 5 ? f[5] : "",
+                       group:   f.count > 6 ? f[6] : "",
+                       detail:  f.count > 7 ? f[7] : "")
     }
 }
 
@@ -660,12 +669,22 @@ final class MenuInput: NSObject, NSSearchFieldDelegate {
     }
 }
 
+enum MenuLine {
+    case group(String)
+    case item(MenuRow)
+}
+
 final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     let opts: Options
     let s: CGFloat
     var rows: [MenuRow] = []
     var shown: [MenuRow] = []
+    var lines: [MenuLine] = []
     var route = "root"
+    /// Width of the chord column, measured over *every* row rather than the
+    /// filtered ones, so the labels do not shuffle sideways while typing.
+    var chordWidth: CGFloat = 0
+    var isReferenceView: Bool { rows.contains { !$0.leading.isEmpty } }
     var stack: [(route: String, rows: [MenuRow], query: String)] = []
 
     let input = MenuInput()
@@ -686,7 +705,7 @@ final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     }
     required init?(coder: NSCoder) { fatalError() }
 
-    var cardW: CGFloat { 560 * s }
+    var cardW: CGFloat { isReferenceView ? 800 * s : 560 * s }
     /// Chrome is title + field + separator above, hint below; the rest is rows,
     /// capped so a long list scrolls instead of running off the screen.
     func cardH(_ rowCount: Int) -> CGFloat {
@@ -761,6 +780,12 @@ final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     func setRows(_ newRows: [MenuRow], route: String) {
         self.rows = newRows
         self.route = route
+        let font = NSFont.systemFont(ofSize: 13 * s, weight: .medium)
+        chordWidth = newRows.map {
+            $0.leading.isEmpty ? 0
+                : ($0.leading as NSString)
+                    .size(withAttributes: [.font: font]).width + 18 * s
+        }.max() ?? 0
         title.stringValue = route == "root" ? "Omarchy  ⌥O"
                                             : route.replacingOccurrences(of: ".", with: " › ")
         applyFilter(input.field.stringValue)
@@ -768,21 +793,47 @@ final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
 
     func applyFilter(_ q: String) {
         shown = rows.filter { $0.matches(q) }
+        lines = []
+        var lastGroup = ""
+        for row in shown {
+            if !row.group.isEmpty && row.group != lastGroup {
+                lines.append(.group(row.group))
+                lastGroup = row.group
+            }
+            lines.append(.item(row))
+        }
         layoutCard()
         table.reloadData()
-        if !shown.isEmpty { table.selectRowIndexes([0], byExtendingSelection: false) }
+        selectFirstItem()
+    }
+
+    func selectFirstItem() {
+        if let i = lines.firstIndex(where: { if case .item = $0 { return true }; return false }) {
+            table.selectRowIndexes([i], byExtendingSelection: false)
+            table.scrollRowToVisible(i)
+        }
+    }
+
+    func itemAt(_ index: Int) -> MenuRow? {
+        guard index >= 0, index < lines.count, case let .item(row) = lines[index] else { return nil }
+        return row
     }
 
     func move(_ delta: Int) {
-        guard !shown.isEmpty else { return }
-        let next = max(0, min(shown.count - 1, table.selectedRow + delta))
+        guard !lines.isEmpty else { return }
+        // Step over section headings rather than landing on them.
+        var next = table.selectedRow + delta
+        while next >= 0, next < lines.count, itemAt(next) == nil { next += delta }
+        guard next >= 0, next < lines.count else { return }
         table.selectRowIndexes([next], byExtendingSelection: false)
         table.scrollRowToVisible(next)
     }
 
     func accept() {
-        guard table.selectedRow >= 0, table.selectedRow < shown.count else { return }
-        let row = shown[table.selectedRow]
+        guard let row = itemAt(table.selectedRow) else { return }
+        // A reference row is something to read, not something to run. Nothing
+        // is printed, so nothing downstream can execute it either.
+        if row.isReference { return }
         if row.isSubmenu { push(row.id) } else { dismiss(printing: row.id, code: 0) }
     }
 
@@ -823,21 +874,57 @@ final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
             let pipe = Pipe()
             task.standardOutput = pipe
             task.standardInput = FileHandle.nullDevice
-            try? task.run()
+            let errPipe = Pipe()
+            task.standardError = errPipe
+            do { try task.run() } catch {
+                DispatchQueue.main.async { self?.showBackendError("cannot run \(backend)") }
+                return
+            }
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
             task.waitUntilExit()
+            // A backend that dies must not look like an empty submenu. Keep what
+            // is on screen and say so, rather than silently showing nothing.
+            guard task.terminationStatus == 0 else {
+                let message = String(data: errData, encoding: .utf8)?
+                    .split(separator: "\n").last.map(String.init) ?? "backend failed"
+                DispatchQueue.main.async { self?.showBackendError(message) }
+                return
+            }
             let parsed = parseMenuRows(String(data: data, encoding: .utf8) ?? "")
             DispatchQueue.main.async { self?.setRows(parsed, route: newRoute) }
         }
     }
 
+    func showBackendError(_ message: String) {
+        title.stringValue = "⚠︎  " + message
+        title.textColor = hexColor(opts.foreground, alpha: 0.9)
+    }
+
     // MARK: table
 
-    func numberOfRows(in tableView: NSTableView) -> Int { shown.count }
+    func numberOfRows(in tableView: NSTableView) -> Int { lines.count }
+
+    func tableView(_ tableView: NSTableView, isGroupRow row: Int) -> Bool {
+        itemAt(row) == nil
+    }
+
+    func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
+        itemAt(row) != nil
+    }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?,
                    row: Int) -> NSView? {
-        let item = shown[row]
+        guard let item = itemAt(row) else {
+            guard case let .group(name) = lines[row] else { return nil }
+            let header = NSTableCellView()
+            let text = NSTextField(labelWithString: name)
+            text.font = .systemFont(ofSize: 11 * s, weight: .semibold)
+            text.textColor = hexColor(opts.accent, alpha: 0.9)
+            text.frame = NSRect(x: 12 * s, y: 8 * s, width: cardW - 40 * s, height: 16 * s)
+            header.addSubview(text)
+            return header
+        }
         let cell = NSTableCellView()
         // Nerd Font on the icon only: a missing glyph must not take the label
         // down with it.
@@ -847,11 +934,25 @@ final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         icon.frame = NSRect(x: 12 * s, y: 7 * s, width: 24 * s, height: 20 * s)
         cell.addSubview(icon)
 
+        let labelX = item.leading.isEmpty ? 42 * s : 12 * s + chordWidth
         let label = NSTextField(labelWithString: item.label)
         label.font = .systemFont(ofSize: 14 * s)
-        label.textColor = hexColor(opts.foreground)
-        label.frame = NSRect(x: 42 * s, y: 7 * s, width: 400 * s, height: 20 * s)
+        // A disabled row is still listed -- it answers "why did that shortcut
+        // stop working?" -- but it reads as inactive.
+        label.textColor = hexColor(opts.foreground, alpha: item.kind == "disabled" ? 0.45 : 1)
+        label.lineBreakMode = .byTruncatingTail
+        label.frame = NSRect(x: labelX, y: 7 * s,
+                             width: cardW - labelX - 40 * s, height: 20 * s)
         cell.addSubview(label)
+
+        if !item.leading.isEmpty {
+            let chord = NSTextField(labelWithString: item.leading)
+            chord.font = .systemFont(ofSize: 13 * s, weight: .medium)
+            chord.textColor = hexColor(opts.accent)
+            chord.alignment = .right
+            chord.frame = NSRect(x: 12 * s, y: 7 * s, width: chordWidth - 12 * s, height: 20 * s)
+            cell.addSubview(chord)
+        }
 
         if item.isSubmenu {
             let chevron = NSTextField(labelWithString: "›")

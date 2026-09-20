@@ -138,7 +138,9 @@ automatically-unhide-macos-hidden-apps = true
     alt-r               = 'mode resize'
     alt-shift-semicolon = 'mode service'
 
-    # Keep macOS "Hide application" disabled
+    # Swallow macOS's hide shortcuts: a hidden window is invisible to a tiling
+    # WM and looks like it vanished. ⌘H hides the focused app, ⌥⌘H hides every
+    # other app -- different commands, both unwanted here.
     cmd-h     = []
     cmd-alt-h = []
 

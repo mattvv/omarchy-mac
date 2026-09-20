@@ -186,6 +186,11 @@ def resolve(name: str) -> str:
 
 
 def run(entry_id: str) -> int:
+    # Keybinding rows are reference material. The overlay never prints their
+    # ids, and this refuses them anyway -- a guarantee worth having in both
+    # layers rather than trusting one.
+    if entry_id.startswith("kb:"):
+        sys.exit("keybinding rows are reference only and are never executed")
     entries = load()
     value = entries.get(entry_id)
     if value is None:

@@ -455,11 +455,14 @@ def palette(c: dict) -> str:
 
 
 def rows_themes() -> str:
-    lines = []
+    # The fifth column marks the row to open on. Carrying it in the rows saves
+    # the caller a second interpreter start before anything is on screen.
+    cur, lines = current(), []
     for name, _mode in themes():
         c = load(name)
         bg = current_bg(name)
-        lines.append("\t".join([name, str(bg) if bg else "", label(name), palette(c)]))
+        lines.append("\t".join([name, str(bg) if bg else "", label(name), palette(c),
+                                "1" if name == cur else ""]))
     return "\n".join(lines)
 
 
@@ -467,7 +470,9 @@ def rows_backgrounds(theme: str | None = None) -> str:
     theme = theme or current()
     have = backgrounds(theme) or fetch(theme)
     pal = palette(load(theme))
-    return "\n".join("\t".join([str(p), str(p), label(p.stem), pal]) for p in have)
+    cur = current_bg(theme)
+    return "\n".join("\t".join([str(p), str(p), label(p.stem), pal,
+                                 "1" if p == cur else ""]) for p in have)
 
 
 # ── Raycast ──────────────────────────────────────────────────────────────────
@@ -495,6 +500,9 @@ RAYCAST_HEADER = """#!/usr/bin/env bash
 # wrong answer.
 AEROSPACE=$(command -v aerospace || echo /opt/homebrew/bin/aerospace)
 [ -x "$AEROSPACE" ] && export OMARCHY_WORKSPACE=$("$AEROSPACE" list-workspaces --focused </dev/null 2>/dev/null)
+mkdir -p "$HOME/.cache/omarchy-mac" 2>/dev/null
+printf '%%s %%s ws=%%s\\n' "$(date +%%H:%%M:%%S)" "$(basename "$0")" "${OMARCHY_WORKSPACE:-?}" \\
+  >> "$HOME/.cache/omarchy-mac/launch.log" 2>/dev/null
 """
 
 

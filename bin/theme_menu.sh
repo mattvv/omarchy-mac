@@ -30,7 +30,9 @@ restore_workspace() {
 
 # Picker chrome is drawn in the theme you are currently wearing.
 source "$HOME/.config/sketchybar/theme.sh" 2>/dev/null
-current=$(python3 "$BIN/theme.py" current)
+# Read the state file rather than starting an interpreter for one line: every
+# millisecond here is blank screen, and blank screen is where focus escapes.
+current=$(cat "$HOME/.local/state/omarchy-mac/current-theme" 2>/dev/null)
 
 if [ ! -x "$PICKER" ]; then
   # No compiled picker (no Swift toolchain at install time). A native

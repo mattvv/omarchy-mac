@@ -113,6 +113,15 @@ Each of these cost real time to diagnose. Don't repeat them.
   terminal and fails from every button. Reproduce it with
   `env -i HOME="$HOME" PATH=/usr/bin:/bin /bin/bash <script>`, and resolve `sketchybar`,
   `borders`, `pgrep` and `osascript` through `tool()` rather than naming them bare.
+- **The overlay must appear before anything else happens.** The picker shows its window
+  first and reads its rows afterwards, on a background queue. Reading them first cost about
+  half a second of blank screen between the launcher starting the process and anything
+  appearing — and under AeroSpace that gap is where the bug lived: Raycast dismisses its own
+  window inside it, focus falls to whatever app owns a window on another workspace, and the
+  workspace follows. An overlay that is already key has nowhere for focus to fall. For the
+  same reason the wrappers read `current-theme` with `cat` rather than starting an
+  interpreter for one line, and the rows carry their own "open on this one" marker instead
+  of costing a second `theme.py` call before the pipeline starts.
 - **Read the workspace before Raycast dismisses, and check more than once.** Raycast closes
   its window the instant it launches a script command, and that hands focus to an app on
   another workspace — so a reading taken a few hundred milliseconds later already says "1",

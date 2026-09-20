@@ -44,6 +44,7 @@ struct Row {
     let imagePath: String
     let label: String
     let palette: [NSColor]
+    let isCurrent: Bool
 }
 
 struct Options {
@@ -91,7 +92,8 @@ func readRows() -> [Row] {
         let label = f.count > 2 ? f[2] : value
         let palette = (f.count > 3 ? f[3] : "")
             .split(separator: ",").map { hexColor(String($0)) }
-        return Row(value: value, imagePath: image, label: label, palette: palette)
+        return Row(value: value, imagePath: image, label: label, palette: palette,
+                   isCurrent: f.count > 4 && f[4] == "1")
     }
 }
 
@@ -241,7 +243,7 @@ final class ItemLayer {
 }
 
 final class CarouselView: NSView {
-    let rows: [Row]
+    var rows: [Row] = []
     let opts: Options
     var selected = 0
     var filter = ""
@@ -266,9 +268,11 @@ final class CarouselView: NSView {
     var frames: [Int: CGRect] = [:]
     var wheelAccum: CGFloat = 0
 
-    init(rows: [Row], opts: Options, frame: NSRect, scale: CGFloat) {
-        self.rows = rows
+    let scale: CGFloat
+
+    init(opts: Options, frame: NSRect, scale: CGFloat) {
         self.opts = opts
+        self.scale = scale
         // 768pt of preview is about half of a 1512pt laptop screen, which is
         // how it looks on omarchy's 1440p reference. Track the screen so an
         // external display does not shrink it into the middle.
@@ -277,6 +281,23 @@ final class CarouselView: NSView {
         wantsLayer = true
         layer?.contentsScale = scale
         build(scale: scale)
+    }
+
+    /// Rows arrive after the window is already on screen -- see the comment at
+    /// the bottom of this file about why the overlay cannot wait for them.
+    func setRows(_ newRows: [Row]) {
+        rows = newRows
+        for _ in rows {
+            let item = ItemLayer(scale: scale)
+            item.dim.backgroundColor = hexColor(opts.background).cgColor
+            item.holder.isHidden = true
+            layer?.insertSublayer(item.holder, above: scrimLayer)
+            items.append(item)
+        }
+        if let i = rows.firstIndex(where: { $0.value == opts.selected })
+            ?? rows.firstIndex(where: { $0.isCurrent }) { selected = i }
+        layout(animated: false)
+        loadNearby()
     }
     required init?(coder: NSCoder) { fatalError() }
 
@@ -544,7 +565,8 @@ final class CarouselView: NSView {
     }
 
     func finish(exitCode: Int32) {
-        guard !rows.isEmpty, matches(selected) else { cancel(); return }
+        guard !rows.isEmpty else { return }       // still loading -- wait
+        guard matches(selected) else { cancel(); return }
         dismiss(printing: rows[selected].value, code: exitCode)
     }
     func cancel() { dismiss(printing: nil, code: 1) }
@@ -602,17 +624,30 @@ panel.hidesOnDeactivate = false
 panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
 panel.setFrame(screen.frame, display: true)
 
-let view = CarouselView(rows: rows, opts: opts, frame: NSRect(origin: .zero, size: screen.frame.size),
+let view = CarouselView(opts: opts, frame: NSRect(origin: .zero, size: screen.frame.size),
                         scale: screen.backingScaleFactor)
 panel.contentView = view
-if let i = rows.firstIndex(where: { $0.value == opts.selected }) { view.selected = i }
 
 panel.orderFrontRegardless()
 app.activate(ignoringOtherApps: true)
 panel.makeKeyAndOrderFront(nil)
 panel.makeFirstResponder(view)
 view.layout(animated: false)
-view.loadNearby()
+
+// Read the rows only once the overlay is already up and holding the keyboard.
+//
+// Reading them first cost about half a second between the launcher starting
+// this process and anything appearing, and under AeroSpace that gap is not
+// merely ugly: Raycast dismisses its own window in it, focus falls to whatever
+// app happens to own a window elsewhere, and the workspace goes with it. An
+// overlay that is already key has nowhere for focus to fall.
+DispatchQueue.global(qos: .userInitiated).async {
+    let rows = readRows()
+    DispatchQueue.main.async {
+        if rows.isEmpty { exit(1) }
+        view.setRows(rows)
+    }
+}
 
 // An .accessory app can be refused activation if it asks while the frontmost
 // app is still settling -- a full-screen overlay that eats keystrokes without

@@ -29,7 +29,7 @@ restore_workspace() {
 }
 
 source "$HOME/.config/sketchybar/theme.sh" 2>/dev/null
-theme=$(python3 "$BIN/theme.py" current)
+theme=$(cat "$HOME/.local/state/omarchy-mac/current-theme" 2>/dev/null)
 
 # Top up the gallery in the background: `rows backgrounds` below already fetches
 # synchronously when the theme has nothing at all, so this only ever runs ahead
@@ -41,8 +41,9 @@ if [ ! -x "$PICKER" ]; then
   exit 0
 fi
 
+# No --selected: the rows mark the current background themselves, so the picker
+# starts in the same breath as the interpreter that feeds it.
 choice=$(python3 "$BIN/theme.py" rows backgrounds "$theme" | "$PICKER" \
-  --selected "$(python3 "$BIN/theme.py" bg current "$theme")" \
   --hint "←→  browse      ⏎  set background      esc  cancel" \
   --background "${BG:-0xff101315}" --foreground "${FG:-0xffcacccc}" \
   --accent "${ACCENT:-0xff798186}" --dark-background "${DARKBG:-0xff0c0e10}")

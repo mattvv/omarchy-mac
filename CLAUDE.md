@@ -82,6 +82,10 @@ Each of these cost real time to diagnose. Don't repeat them.
 - **`sketchybar --query` silently omits** `background`, popup `drawing`, `notch_width`
   **and `click_script`** — no item reports a click script, whether it has one or not.
   Absence there is not evidence of failure; verify the rc file instead.
+- **`pkill -f <pattern>` matches the shell that runs it.** A toggle written as
+  `pgrep -f 'caffeinate -dimsu' && pkill -f 'caffeinate -dimsu' || …` has the pattern in
+  its own `bash -c` argv, so it kills itself — the menu action exited 144 and took its
+  caller with it. Keep a pid file (`bin/stay_awake.sh`) rather than matching command lines.
 - **A menu action runs with the launcher's environment, not yours.** `sketchybar --bar
   hidden=toggle` works from a terminal and fails with `command not found` from the bar, a
   keybinding or Raycast — into a pipe nobody reads, so the row just appears to do nothing.

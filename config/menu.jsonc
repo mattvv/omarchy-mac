@@ -15,6 +15,7 @@
 {
   // ── Root ──────────────────────────────────────────────────────────────────
   "style":  {"icon":"", "label":"Style",  "aliases":["appearance"]},
+  "trigger":{"icon":"󱓞", "label":"Trigger", "aliases":["capture","screenshot"]},
   "learn":  {"icon":"󰧑", "label":"Learn"},
   "system": {"icon":"", "label":"System", "aliases":["power"]},
 
@@ -28,6 +29,24 @@
   "style.bar":        {"icon":"󰍜", "label":"Menu Bar"},
   "style.bar.toggle": {"icon":"󰔌", "label":"Toggle",
                        "action":"sketchybar --bar hidden=toggle"},
+
+  // ── Trigger ───────────────────────────────────────────────────────────────
+  // Upstream's Trigger group is 46 entries. These are the ones macOS can
+  // actually do without a dependency we do not already have; the rest are
+  // listed in dev-notes/menu-plan.md rather than given a row that does nothing.
+  "trigger.screenshot": {"icon":"󰹑", "label":"Screenshot (region)", "aliases":["capture","screen"],
+                         "action":"screencapture -i \"$HOME/Desktop/Screenshot $(date '+%Y-%m-%d at %H.%M.%S').png\""},
+  "trigger.screenshot-window": {"icon":"󰖯", "label":"Screenshot (window)",
+                         "action":"screencapture -iW \"$HOME/Desktop/Screenshot $(date '+%Y-%m-%d at %H.%M.%S').png\""},
+  "trigger.screenrecord": {"icon":"󰕧", "label":"Screen recording", "aliases":["record","video"],
+                         "action":"screencapture -v \"$HOME/Desktop/Recording $(date '+%Y-%m-%d at %H.%M.%S').mov\""},
+  "trigger.color": {"icon":"󰸌", "label":"Colour picker", "aliases":["color","pick"],
+                         "action":"open -a \"Digital Color Meter\""},
+  // `checked` puts a tick on the row when the assertion is up, so the menu says
+  // which way the toggle currently sits instead of making you remember.
+  "trigger.stay-awake": {"icon":"󰅶", "label":"Stay awake", "aliases":["caffeinate","insomnia"],
+                         "checked":"$OMARCHY_BIN/stay_awake.sh status",
+                         "action":"$OMARCHY_BIN/stay_awake.sh toggle"},
 
   // ── Learn ─────────────────────────────────────────────────────────────────
   "learn.keybindings": {"icon":"", "label":"Keybindings", "aliases":["keys","bindings"],

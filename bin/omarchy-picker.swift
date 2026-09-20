@@ -57,6 +57,7 @@ struct Options {
     var workspace = ""          // AeroSpace workspace to return to on dismissal
     var menuBackend = ""        // path to menu.py -- presence selects list mode
     var corpusBackend = ""      // same script, asked for everything searchable
+    var route = "root"          // which route the rows on stdin belong to
     var background   = "#101315"
     var foreground   = "#cacccc"
     var accent       = "#798186"
@@ -78,6 +79,7 @@ func parseArgs() -> Options {
         case "--workspace":  o.workspace = next()
         case "--menu":       o.menuBackend = next()
         case "--corpus":     o.corpusBackend = next()
+        case "--route":      o.route = next()
         case "--background": o.background = next()
         case "--foreground": o.foreground = next()
         case "--accent":     o.accent = next()
@@ -1169,7 +1171,10 @@ DispatchQueue.global(qos: .userInitiated).async {
         if let menu {
             let parsed = parseMenuRows(text)
             if parsed.isEmpty { exit(1) }
-            menu.setRows(parsed, route: "root")
+            // The rows on stdin belong to whichever route the caller asked for
+            // -- labelling them "root" put the wrong heading on a submenu
+            // opened directly, and told Escape it had nowhere to go back to.
+            menu.setRows(parsed, route: opts.route)
             menu.loadCorpus()
         } else {
             let parsed = parseRows(text)

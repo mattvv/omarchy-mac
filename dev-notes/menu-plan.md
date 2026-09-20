@@ -79,17 +79,21 @@ Shutdown works is a test you run once.
 
 ## P4 — trigger  (upstream: 46 entries)
 
-- [ ] `trigger.capture.screenshot` → `screencapture -i`
-- [ ] `trigger.capture.screenrecord` (+ audio variants) → `screencapture -v`
-- [ ] `trigger.capture.color` → DigitalColor Meter / a small picker
+- [x] `trigger.screenshot` → `screencapture -i`, region and window
+- [x] `trigger.screenrecord` → `screencapture -v`. Audio variants need ffmpeg-class
+      tooling macOS does not ship; not ported.
+- [x] `trigger.color` → Digital Color Meter
 - [ ] `trigger.capture.text` → macOS Live Text OCR via Vision framework
 - [ ] `trigger.emoji` → macOS emoji palette (`⌃⌘Space`)
-- [ ] `trigger.toggle.idle-lock` → `caffeinate` on/off
-- [ ] `trigger.toggle.nightlight` → Night Shift
-- [ ] `trigger.toggle.notifications` → Do Not Disturb / Focus
+- [x] `trigger.stay-awake` → `caffeinate` behind a pid file, with a live ✓ on the row
+- [ ] `trigger.toggle.nightlight` → **no macOS CLI.** Needs `brew install nightlight`
+      or a private-framework call; no row until one of those is decided.
+- [ ] `trigger.toggle.notifications` → Focus has no supported CLI. A user-made
+      Shortcut plus `shortcuts run` is the only honest route; needs their input.
 - [x] `trigger.toggle.top-bar` → `sketchybar --bar hidden=toggle`, under Style › Menu Bar
 - [ ] `trigger.share.*` → AirDrop / `shortcuts` share sheet
-- [ ] `trigger.hardware.mirror-display` → `displayplacer` (already a dependency)
+- [ ] `trigger.hardware.mirror-display` → `displayplacer` is installed, but this Mac
+      has one display, so there is nothing to mirror and nothing to test against.
 
 ## P5 — setup  (upstream: 66 entries)
 

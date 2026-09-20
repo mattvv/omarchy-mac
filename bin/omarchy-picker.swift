@@ -545,13 +545,27 @@ final class CarouselView: NSView {
 
     func finish(exitCode: Int32) {
         guard !rows.isEmpty, matches(selected) else { cancel(); return }
-        print(rows[selected].value)
-        exit(exitCode)
+        dismiss(printing: rows[selected].value, code: exitCode)
     }
-    func cancel() { exit(1) }
+    func cancel() { dismiss(printing: nil, code: 1) }
 }
 
 // ── Window ───────────────────────────────────────────────────────────────────
+
+/// Put the keyboard back where it was.
+///
+/// Left to itself macOS hands focus to the next app in its own order when we
+/// quit, and under AeroSpace that choice drags you to whichever workspace that
+/// app's window lives on -- you ask for a theme and land on workspace 1.
+func dismiss(printing value: String?, code: Int32) {
+    panel.orderOut(nil)
+    if let prev = previousApp, prev.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+        prev.activate(options: [])
+    }
+    if let value { print(value) }
+    // Let the activation request land before this process disappears.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { exit(code) }
+}
 
 // A borderless NSPanel: AeroSpace only tiles windows whose accessibility
 // subrole is AXStandardWindow, so a panel is left alone without needing a
@@ -564,6 +578,9 @@ final class PickerPanel: NSPanel {
 let opts = parseArgs()
 let rows = readRows()
 if rows.isEmpty { exit(1) }
+
+// Captured before activating, while the answer is still someone else.
+let previousApp = NSWorkspace.shared.frontmostApplication
 
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
@@ -605,6 +622,13 @@ DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
     app.activate(ignoringOtherApps: true)
     panel.makeKeyAndOrderFront(nil)
     panel.makeFirstResponder(view)
+}
+
+// OMARCHY_PICKER_DEBUG_SELECT=1: apply the highlighted row unattended. Picking
+// is the one path that cannot be screenshotted or driven without typing into
+// someone's live session, and it is the path that moves focus.
+if ProcessInfo.processInfo.environment["OMARCHY_PICKER_DEBUG_SELECT"] == "1" {
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { view.finish(exitCode: 0) }
 }
 
 // OMARCHY_PICKER_DEBUG=1: say whether the overlay actually holds the keyboard.

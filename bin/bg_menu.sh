@@ -9,10 +9,10 @@ PICKER="$HOME/.local/share/omarchy-mac/OmarchyPicker.app/Contents/MacOS/omarchy-
 source "$HOME/.config/sketchybar/theme.sh" 2>/dev/null
 theme=$(python3 "$BIN/theme.py" current)
 
-# A theme switch only fetches the first background inline and leaves the rest to
-# a detached fetch, so make sure the full set has landed before showing a picker
-# that is meant to show all of them. It is a no-op once they are on disk.
-python3 "$BIN/theme.py" fetch "$theme" >/dev/null 2>&1
+# Top up the gallery in the background: `rows backgrounds` below already fetches
+# synchronously when the theme has nothing at all, so this only ever runs ahead
+# of the *next* open and never keeps the picker off the screen.
+(python3 "$BIN/theme.py" fetch "$theme" >/dev/null 2>&1 &)
 
 if [ ! -x "$PICKER" ]; then
   python3 "$BIN/theme.py" bg next

@@ -43,6 +43,13 @@ python3 ~/.local/bin/theme.py rows themes | wc -l   # expect 22 -- 0 means theme
 ls ~/.local/share/omarchy-mac/OmarchyPicker.app/Contents/MacOS/omarchy-picker
 OMARCHY_PICKER_DEBUG=1 ~/.local/bin/theme_menu.sh   # stderr must say
                                                     # app.isActive=true panel.isKey=true
+
+# Picking is the one path you cannot screenshot. This applies the highlighted
+# row unattended, so you can check it from another workspace and confirm you
+# are still on that workspace afterwards:
+aerospace workspace 6 </dev/null
+OMARCHY_PICKER_DEBUG_SELECT=1 ~/.local/bin/theme_menu.sh
+aerospace list-workspaces --focused </dev/null   # must still be 6
 ```
 
 **A screenshot cannot tell you whether the picker has the keyboard.** It will look

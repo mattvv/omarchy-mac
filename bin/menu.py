@@ -161,8 +161,37 @@ def checked(value: dict) -> bool:
                           env=env(), stdin=subprocess.DEVNULL).returncode == 0
 
 
+def provider_rows(name: str) -> str:
+    """A submenu whose contents depend on the machine rather than the file.
+    Upstream has the same idea -- `"style.font": {"provider":"fonts"}` -- because
+    a font list cannot be written down in advance."""
+    if name == "fonts":
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import fonts
+        current = current_font()
+        out = []
+        for family, _path in fonts.families():
+            label = family + ("  ✓" if family == current else "")
+            out.append("\t".join(["font:" + family, "", label, "action", "", "", "", ""]))
+        return "\n".join(out)
+    return ""
+
+
+def current_font() -> str:
+    conf = HOME / ".config/ghostty/font.conf"
+    if not conf.exists():
+        return ""
+    for line in conf.read_text().splitlines():
+        if line.startswith("font-family"):
+            return line.split("=", 1)[1].strip().strip('"')
+    return ""
+
+
 def rows(route: str = "root") -> str:
     entries = load()
+    node = entries.get(route)
+    if node and "provider" in node:
+        return provider_rows(node["provider"])
     out = []
     for key, value in children(entries, route):
         if not visible(value):
@@ -192,6 +221,10 @@ def run(entry_id: str) -> int:
     # layers rather than trusting one.
     if entry_id.startswith("kb:"):
         sys.exit("keybinding rows are reference only and are never executed")
+
+    if entry_id.startswith("font:"):
+        return subprocess.Popen([str(BIN / "font.sh"), "set", entry_id[5:]], env=env(),
+                                stdin=subprocess.DEVNULL, start_new_session=True).pid
 
     if entry_id.startswith("app:"):
         # The id carries the bundle path, so check it is one: an existing .app

@@ -44,7 +44,13 @@ has no honest macOS equivalent. Each item below says what we build, or why we do
 
 - [x] `style.theme` → existing theme picker, reached from the menu
 - [x] `style.background` → existing background picker, plus Next Background
-- [ ] `style.font` → pick a terminal font, write to Ghostty + WezTerm theme files
+- [x] `style.font` → a provider-backed submenu, since a font list cannot be written down
+      in advance. `bin/fonts.py` reads the installed font files directly (family from the
+      `name` table, fixed-pitch from `post`) with no dependency, collapses per-weight
+      files into one choice, and skips Apple's hidden dot-prefixed faces.
+      `bin/font.sh` writes files the configs already include rather than editing them.
+      **WezTerm's side is unverified** — its CLI is not installed, so the lua was not
+      parse-checked; it is wrapped in `pcall` so a mistake degrades to no override.
 - [x] `style.bar.position` → top / bottom, applied live and remembered across reloads.
       Left and right are absent: sketchybar is a horizontal bar, and a row that turns it
       sideways would be a row that does nothing.

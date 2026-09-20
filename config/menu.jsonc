@@ -27,6 +27,7 @@
                        "action":"$OMARCHY_BIN/bg_menu.sh"},
   "style.background-next": {"icon":"󰒭", "label":"Next Background",
                        "action":"python3 $OMARCHY_BIN/theme.py bg next"},
+  "style.font":       {"icon":"", "label":"Font", "aliases":["typeface"], "provider":"fonts"},
   "style.bar":        {"icon":"󰍜", "label":"Menu Bar"},
   "style.bar.toggle": {"icon":"󰔌", "label":"Toggle",
                        "action":"sketchybar --bar hidden=toggle"},

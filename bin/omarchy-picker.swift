@@ -55,6 +55,7 @@ struct Options {
     var hint         = ""
     var altKey: Character? = nil
     var workspace = ""          // AeroSpace workspace to return to on dismissal
+    var menuBackend = ""        // path to menu.py -- presence selects list mode
     var background   = "#101315"
     var foreground   = "#cacccc"
     var accent       = "#798186"
@@ -74,6 +75,7 @@ func parseArgs() -> Options {
         case "--hint":       o.hint = next()
         case "--alt-key":    o.altKey = next().lowercased().first
         case "--workspace":  o.workspace = next()
+        case "--menu":       o.menuBackend = next()
         case "--background": o.background = next()
         case "--foreground": o.foreground = next()
         case "--accent":     o.accent = next()
@@ -87,9 +89,7 @@ func parseArgs() -> Options {
 /// Reads stdin to EOF, which can only ever happen once -- call it twice and the
 /// second call returns nothing at all. It is called from exactly one place, on a
 /// background queue, after the window is already up.
-func readRows() -> [Row] {
-    let data = FileHandle.standardInput.readDataToEndOfFile()
-    let text = String(data: data, encoding: .utf8) ?? ""
+func parseRows(_ text: String) -> [Row] {
     return text.split(separator: "\n").compactMap { line in
         let f = line.components(separatedBy: "\t")
         guard let value = f.first, !value.isEmpty else { return nil }
@@ -582,6 +582,296 @@ final class CarouselView: NSView {
     func cancel() { dismiss(printing: nil, code: 1) }
 }
 
+
+// ── Menu mode ────────────────────────────────────────────────────────────────
+//
+// The same overlay, rendering a filterable list instead of a carousel: our
+// stand-in for omarchy's `omarchy-menu`. Rows are NSTableView rather than the
+// hand-drawn layers the carousel uses -- a list needs selection, scrolling,
+// accessibility and text behaviour, all of which AppKit already has and none of
+// which is worth reimplementing for forty rows.
+
+struct MenuRow {
+    let id: String, icon: String, label: String, kind: String, aliases: String
+    var isSubmenu: Bool { kind == "submenu" }
+    func matches(_ q: String) -> Bool {
+        if q.isEmpty { return true }
+        let n = q.lowercased()
+        return label.lowercased().contains(n) || id.lowercased().contains(n)
+            || aliases.lowercased().contains(n)
+    }
+}
+
+func parseMenuRows(_ text: String) -> [MenuRow] {
+    text.split(separator: "\n").compactMap { line in
+        let f = line.components(separatedBy: "\t")
+        guard let id = f.first, !id.isEmpty else { return nil }
+        return MenuRow(id: id,
+                       icon:  f.count > 1 ? f[1] : "",
+                       label: f.count > 2 ? f[2] : id,
+                       kind:  f.count > 3 ? f[3] : "action",
+                       aliases: f.count > 4 ? f[4] : "")
+    }
+}
+
+/// Text input, routed the way AppKit expects: AppKit owns the field editor, and
+/// navigation is intercepted in the delegate rather than by reading keystrokes.
+/// Every branch checks `hasMarkedText()` first so an input method composing a
+/// character keeps Return and Escape for itself.
+final class MenuInput: NSObject, NSSearchFieldDelegate {
+    let field = NSSearchField(frame: .zero)
+    var filterChanged: (String) -> Void = { _ in }
+    var moveSelection: (Int) -> Void = { _ in }
+    var acceptSelection: () -> Void = {}
+    var escape: () -> Void = {}
+    var back: () -> Void = {}
+
+    override init() {
+        super.init()
+        field.placeholderString = "Search"
+        field.delegate = self
+        field.sendsSearchStringImmediately = true
+        field.sendsWholeSearchString = false
+        field.focusRingType = .none
+        field.isBezeled = false
+        field.drawsBackground = false
+    }
+
+    func controlTextDidChange(_ notification: Notification) {
+        if let editor = field.currentEditor() as? NSTextView, editor.hasMarkedText() { return }
+        filterChanged(field.stringValue)
+    }
+
+    func control(_ control: NSControl, textView: NSTextView,
+                 doCommandBy commandSelector: Selector) -> Bool {
+        guard !textView.hasMarkedText() else { return false }
+        switch commandSelector {
+        case #selector(NSResponder.moveUp(_:)):       moveSelection(-1); return true
+        case #selector(NSResponder.moveDown(_:)):     moveSelection(1);  return true
+        case #selector(NSResponder.insertNewline(_:)): acceptSelection(); return true
+        case #selector(NSResponder.cancelOperation(_:)): escape();       return true
+        case #selector(NSResponder.deleteBackward(_:)):
+            // Empty backspace goes up a level. Left/Right stay with the editor:
+            // making Left mean "parent" would break editing a query.
+            if field.stringValue.isEmpty { back(); return true }
+            return false
+        default: return false
+        }
+    }
+}
+
+final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
+    let opts: Options
+    let s: CGFloat
+    var rows: [MenuRow] = []
+    var shown: [MenuRow] = []
+    var route = "root"
+    var stack: [(route: String, rows: [MenuRow], query: String)] = []
+
+    let input = MenuInput()
+    let table = NSTableView()
+    let scroll = NSScrollView()
+    let card = NSView()
+    let title = NSTextField(labelWithString: "")
+    let separator = NSView()
+    let hint = NSTextField(labelWithString: "")
+
+    init(opts: Options, frame: NSRect, scale: CGFloat) {
+        self.opts = opts
+        self.s = min(max(min(frame.width / 1512, frame.height / 982), 0.8), 1.6)
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.backgroundColor = hexColor(opts.background, alpha: 0.5).cgColor
+        build()
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    var cardW: CGFloat { 560 * s }
+    /// Chrome is title + field + separator above, hint below; the rest is rows,
+    /// capped so a long list scrolls instead of running off the screen.
+    func cardH(_ rowCount: Int) -> CGFloat {
+        let rowsH = CGFloat(max(1, rowCount)) * (34 * s + 2 * s)
+        return min(76 * s + rowsH + 54 * s, bounds.height * 0.75)
+    }
+
+    func layoutCard() {
+        let w = cardW, h = cardH(shown.count)
+        card.frame = NSRect(x: (bounds.width - w) / 2, y: (bounds.height - h) / 2,
+                            width: w, height: h)
+        title.frame = NSRect(x: 20 * s, y: h - 30 * s, width: w - 40 * s, height: 16 * s)
+        input.field.frame = NSRect(x: 14 * s, y: h - 68 * s, width: w - 28 * s, height: 30 * s)
+        separator.frame = NSRect(x: 0, y: h - 76 * s, width: w, height: 1)
+        scroll.frame = NSRect(x: 8 * s, y: 40 * s, width: w - 16 * s, height: h - 120 * s)
+        hint.frame = NSRect(x: 0, y: 14 * s, width: w, height: 14 * s)
+    }
+
+    func build() {
+        let w = 560 * s, h = 460 * s
+        card.wantsLayer = true
+        card.layer?.backgroundColor = hexColor(opts.darkBackground, alpha: 0.98).cgColor
+        card.layer?.cornerRadius = 12 * s
+        card.layer?.borderWidth = 1 * s
+        card.layer?.borderColor = hexColor(opts.accent, alpha: 0.7).cgColor
+        card.frame = NSRect(x: (bounds.width - w) / 2, y: (bounds.height - h) / 2, width: w, height: h)
+        addSubview(card)
+
+        title.font = .systemFont(ofSize: 12 * s, weight: .semibold)
+        title.textColor = hexColor(opts.foreground, alpha: 0.45)
+        title.frame = NSRect(x: 20 * s, y: h - 30 * s, width: w - 40 * s, height: 16 * s)
+        card.addSubview(title)
+
+        input.field.font = .systemFont(ofSize: 19 * s)
+        input.field.textColor = hexColor(opts.foreground)
+        input.field.frame = NSRect(x: 14 * s, y: h - 68 * s, width: w - 28 * s, height: 30 * s)
+        card.addSubview(input.field)
+
+        separator.frame = NSRect(x: 0, y: h - 76 * s, width: w, height: 1)
+        separator.wantsLayer = true
+        separator.layer?.backgroundColor = hexColor(opts.foreground, alpha: 0.12).cgColor
+        card.addSubview(separator)
+
+        table.headerView = nil
+        table.backgroundColor = .clear
+        table.rowHeight = 34 * s
+        table.intercellSpacing = NSSize(width: 0, height: 2 * s)
+        table.selectionHighlightStyle = .regular
+        table.dataSource = self
+        table.delegate = self
+        table.addTableColumn(NSTableColumn(identifier: NSUserInterfaceItemIdentifier("row")))
+        scroll.documentView = table
+        scroll.hasVerticalScroller = true
+        scroll.drawsBackground = false
+        scroll.frame = NSRect(x: 8 * s, y: 40 * s, width: w - 16 * s, height: h - 120 * s)
+        card.addSubview(scroll)
+
+        hint.font = .systemFont(ofSize: 11 * s, weight: .medium)
+        hint.textColor = hexColor(opts.foreground, alpha: 0.4)
+        hint.alignment = .center
+        hint.frame = NSRect(x: 0, y: 14 * s, width: w, height: 14 * s)
+        hint.stringValue = "↑↓ move    ⏎ select    ⌫ back    esc close"
+        card.addSubview(hint)
+
+        input.filterChanged = { [weak self] q in self?.applyFilter(q) }
+        input.moveSelection = { [weak self] d in self?.move(d) }
+        input.acceptSelection = { [weak self] in self?.accept() }
+        input.escape = { [weak self] in self?.escapePressed() }
+        input.back = { [weak self] in self?.pop() }
+    }
+
+    func setRows(_ newRows: [MenuRow], route: String) {
+        self.rows = newRows
+        self.route = route
+        title.stringValue = route == "root" ? "Omarchy  ⌥O"
+                                            : route.replacingOccurrences(of: ".", with: " › ")
+        applyFilter(input.field.stringValue)
+    }
+
+    func applyFilter(_ q: String) {
+        shown = rows.filter { $0.matches(q) }
+        layoutCard()
+        table.reloadData()
+        if !shown.isEmpty { table.selectRowIndexes([0], byExtendingSelection: false) }
+    }
+
+    func move(_ delta: Int) {
+        guard !shown.isEmpty else { return }
+        let next = max(0, min(shown.count - 1, table.selectedRow + delta))
+        table.selectRowIndexes([next], byExtendingSelection: false)
+        table.scrollRowToVisible(next)
+    }
+
+    func accept() {
+        guard table.selectedRow >= 0, table.selectedRow < shown.count else { return }
+        let row = shown[table.selectedRow]
+        if row.isSubmenu { push(row.id) } else { dismiss(printing: row.id, code: 0) }
+    }
+
+    /// Descend in place rather than exiting and relaunching. Every overlay that
+    /// closes costs a workspace excursion to correct (see CLAUDE.md), so a menu
+    /// three levels deep would pay it three times.
+    func push(_ newRoute: String) {
+        stack.append((route, rows, input.field.stringValue))
+        input.field.stringValue = ""
+        loadRoute(newRoute)
+    }
+
+    func pop() {
+        guard let previous = stack.popLast() else { return }
+        input.field.stringValue = previous.query
+        setRows(previous.rows, route: previous.route)
+    }
+
+    func escapePressed() {
+        if !input.field.stringValue.isEmpty {
+            input.field.stringValue = ""
+            applyFilter("")
+        } else if !stack.isEmpty {
+            pop()
+        } else {
+            dismiss(printing: nil, code: 1)
+        }
+    }
+
+    func loadRoute(_ newRoute: String) {
+        let backend = opts.menuBackend
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let task = Process()
+            // /usr/bin/python3 explicitly: a GUI launch has no Homebrew on PATH,
+            // and menu.py is written to run under the 3.9 that ships with macOS.
+            task.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+            task.arguments = [backend, "rows", newRoute]
+            let pipe = Pipe()
+            task.standardOutput = pipe
+            task.standardInput = FileHandle.nullDevice
+            try? task.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            task.waitUntilExit()
+            let parsed = parseMenuRows(String(data: data, encoding: .utf8) ?? "")
+            DispatchQueue.main.async { self?.setRows(parsed, route: newRoute) }
+        }
+    }
+
+    // MARK: table
+
+    func numberOfRows(in tableView: NSTableView) -> Int { shown.count }
+
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?,
+                   row: Int) -> NSView? {
+        let item = shown[row]
+        let cell = NSTableCellView()
+        // Nerd Font on the icon only: a missing glyph must not take the label
+        // down with it.
+        let icon = NSTextField(labelWithString: item.icon)
+        icon.font = NSFont(name: "Hack Nerd Font", size: 15 * s) ?? .systemFont(ofSize: 15 * s)
+        icon.textColor = hexColor(opts.accent)
+        icon.frame = NSRect(x: 12 * s, y: 7 * s, width: 24 * s, height: 20 * s)
+        cell.addSubview(icon)
+
+        let label = NSTextField(labelWithString: item.label)
+        label.font = .systemFont(ofSize: 14 * s)
+        label.textColor = hexColor(opts.foreground)
+        label.frame = NSRect(x: 42 * s, y: 7 * s, width: 400 * s, height: 20 * s)
+        cell.addSubview(label)
+
+        if item.isSubmenu {
+            let chevron = NSTextField(labelWithString: "›")
+            chevron.font = .systemFont(ofSize: 15 * s, weight: .medium)
+            chevron.textColor = hexColor(opts.foreground, alpha: 0.35)
+            chevron.alignment = .right
+            chevron.frame = NSRect(x: scroll.frame.width - 34 * s, y: 7 * s,
+                                   width: 20 * s, height: 20 * s)
+            cell.addSubview(chevron)
+        }
+        return cell
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        // Outside the card closes, as the carousel's scrim does.
+        let point = convert(event.locationInWindow, from: nil)
+        if !card.frame.contains(point) { dismiss(printing: nil, code: 1) }
+    }
+}
+
 // ── Window ───────────────────────────────────────────────────────────────────
 
 /// True once dismissal has begun. Delayed callbacks -- the activation retry,
@@ -646,6 +936,26 @@ final class PickerPanel: NSPanel {
     // Main is what an *active application* has. A panel that never activates
     // its app must not claim it.
     override var canBecomeMain: Bool { !nonactivating }
+
+    /// A hand-built process has no Edit menu, so ⌘A/C/X/V/Z reach nothing.
+    /// Route them through the responder chain to the field editor by hand.
+    /// Deliberately narrow: Return, Escape and ordinary characters are never
+    /// touched here -- the input context must see those first.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let mods = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        guard let editor = firstResponder as? NSTextView, editor.isFieldEditor,
+              mods == [.command] || mods == [.command, .shift],
+              let key = event.charactersIgnoringModifiers?.lowercased()
+        else { return super.performKeyEquivalent(with: event) }
+
+        let action: String? = mods == [.command, .shift]
+            ? (key == "z" ? "redo:" : nil)
+            : ["a": "selectAll:", "c": "copy:", "x": "cut:", "v": "paste:", "z": "undo:"][key]
+        if let action, NSApp.sendAction(NSSelectorFromString(action), to: nil, from: self) {
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
 }
 
 let opts = parseArgs()
@@ -682,8 +992,13 @@ panel.hidesOnDeactivate = false
 panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
 panel.setFrame(screen.frame, display: true)
 
-let view = CarouselView(opts: opts, frame: NSRect(origin: .zero, size: screen.frame.size),
-                        scale: screen.backingScaleFactor)
+let isMenu = !opts.menuBackend.isEmpty
+let carousel = isMenu ? nil : CarouselView(opts: opts,
+                                           frame: NSRect(origin: .zero, size: screen.frame.size),
+                                           scale: screen.backingScaleFactor)
+let menu = isMenu ? MenuView(opts: opts, frame: NSRect(origin: .zero, size: screen.frame.size),
+                             scale: screen.backingScaleFactor) : nil
+let view: NSView = carousel ?? menu!
 panel.contentView = view
 
 panel.orderFrontRegardless()
@@ -692,8 +1007,15 @@ panel.orderFrontRegardless()
 // the first time.
 if !nonactivating { app.activate(ignoringOtherApps: true) }
 panel.makeKeyAndOrderFront(nil)
-panel.makeFirstResponder(view)
-view.layout(animated: false)
+// The field editor is substituted by AppKit once the panel is key and the
+// field is in the hierarchy -- in that order.
+if let menu {
+    panel.initialFirstResponder = menu.input.field
+    panel.makeFirstResponder(menu.input.field)
+} else {
+    panel.makeFirstResponder(view)
+}
+carousel?.layout(animated: false)
 
 // Read the rows only once the overlay is already up and holding the keyboard.
 //
@@ -703,10 +1025,17 @@ view.layout(animated: false)
 // app happens to own a window elsewhere, and the workspace goes with it. An
 // overlay that is already key has nowhere for focus to fall.
 DispatchQueue.global(qos: .userInitiated).async {
-    let rows = readRows()
+    let text = String(data: FileHandle.standardInput.readDataToEndOfFile(), encoding: .utf8) ?? ""
     DispatchQueue.main.async {
-        if rows.isEmpty { exit(1) }
-        view.setRows(rows)
+        if let menu {
+            let parsed = parseMenuRows(text)
+            if parsed.isEmpty { exit(1) }
+            menu.setRows(parsed, route: "root")
+        } else {
+            let parsed = parseRows(text)
+            if parsed.isEmpty { exit(1) }
+            carousel!.setRows(parsed)
+        }
     }
 }
 
@@ -717,7 +1046,7 @@ DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
     guard !isFinishing, !nonactivating, !panel.isKeyWindow else { return }
     app.activate(ignoringOtherApps: true)
     panel.makeKeyAndOrderFront(nil)
-    panel.makeFirstResponder(view)
+    panel.makeFirstResponder(menu?.input.field ?? view)
 }
 
 // OMARCHY_PICKER_DEBUG_SELECT=1: apply the highlighted row unattended. Picking
@@ -726,7 +1055,7 @@ DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
 if ProcessInfo.processInfo.environment["OMARCHY_PICKER_DEBUG_SELECT"] == "1" {
     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
         guard !isFinishing else { return }
-        view.finish(exitCode: 0)
+        if let menu { menu.accept() } else { carousel?.finish(exitCode: 0) }
     }
 }
 

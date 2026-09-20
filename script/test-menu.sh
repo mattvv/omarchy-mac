@@ -55,6 +55,27 @@ while IFS=$'\t' read -r key cmd; do
   fi
 done < /tmp/menu-actions.txt
 
+echo "icons"
+# An icon the font has no glyph for renders as nothing or as a tofu box, and the
+# menu looks broken without anything raising an error. Read the cmap and check.
+missing=$(python3 -c "
+import importlib.util, sys, os
+sys.path.insert(0, 'script')
+from fontcheck import supported
+spec = importlib.util.spec_from_file_location('m','bin/menu.py')
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+font = os.path.expanduser('~/Library/Fonts/HackNerdFont-Regular.ttf')
+have = supported(font)
+bad = []
+for k, v in m.load().items():
+    icon = v.get('icon','')
+    if not icon:
+        bad.append(k + ':empty')
+    elif ord(icon[0]) not in have:
+        bad.append('%s:U+%04X' % (k, ord(icon[0])))
+print(' '.join(bad))")
+[ -z "$missing" ] && ok "every icon has a glyph in Hack Nerd Font" || bad "icons without glyphs: $missing"
+
 echo
 [ "$fail" -eq 0 ] && echo "all passed" || echo "$fail failed"
 exit "$fail"

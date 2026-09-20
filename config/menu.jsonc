@@ -14,25 +14,25 @@
 // have no honest equivalent and are not coming.
 {
   // ── Root ──────────────────────────────────────────────────────────────────
-  "style":  {"icon":"", "label":"Style",  "aliases":["appearance"]},
+  "style":  {"icon":"", "label":"Style",  "aliases":["appearance"]},
   "learn":  {"icon":"󰧑", "label":"Learn"},
-  "system": {"icon":"", "label":"System", "aliases":["power"]},
+  "system": {"icon":"", "label":"System", "aliases":["power"]},
 
   // ── Style ─────────────────────────────────────────────────────────────────
   "style.theme":      {"icon":"󰸌", "label":"Theme",      "aliases":["theme","themes"],
                        "action":"$OMARCHY_BIN/theme_menu.sh"},
-  "style.background": {"icon":"", "label":"Background", "aliases":["wallpaper"],
+  "style.background": {"icon":"", "label":"Background", "aliases":["wallpaper"],
                        "action":"$OMARCHY_BIN/bg_menu.sh"},
   "style.background-next": {"icon":"󰒭", "label":"Next Background",
                        "action":"python3 $OMARCHY_BIN/theme.py bg next"},
-  "style.bar":        {"icon":"", "label":"Menu Bar"},
+  "style.bar":        {"icon":"󰍜", "label":"Menu Bar"},
   "style.bar.toggle": {"icon":"󰔌", "label":"Toggle",
                        "action":"sketchybar --bar hidden=toggle"},
 
   // ── Learn ─────────────────────────────────────────────────────────────────
-  "learn.omarchy":     {"icon":"", "label":"Omarchy",
+  "learn.omarchy":     {"icon":"", "label":"Omarchy",
                         "action":"open https://omarchy.org"},
-  "learn.aerospace":   {"icon":"", "label":"AeroSpace",
+  "learn.aerospace":   {"icon":"", "label":"AeroSpace",
                         "action":"open https://nikitabobko.github.io/AeroSpace/guide"},
 
   // ── System ────────────────────────────────────────────────────────────────
@@ -44,13 +44,13 @@
   // exists as a directory but no longer contains it), which the action test
   // caught. Sleeping the display locks whenever "require password after sleep"
   // is set, which is the default.
-  "system.lock":        {"icon":"", "label":"Lock",
+  "system.lock":        {"icon":"", "label":"Lock",
                          "action":"pmset displaysleepnow"},
   "system.suspend":     {"icon":"󰒲", "label":"Suspend", "aliases":["sleep"],
                          "action":"pmset sleepnow"},
   "system.logout":      {"icon":"󰍃", "label":"Logout",
                          "action":"osascript -e 'tell application \"System Events\" to log out'"},
-  "system.reboot":      {"icon":"", "label":"Reboot", "aliases":["restart"],
+  "system.reboot":      {"icon":"󰜉", "label":"Reboot", "aliases":["restart"],
                          "action":"osascript -e 'tell application \"System Events\" to restart'"},
   "system.shutdown":    {"icon":"⏻", "label":"Shutdown",
                          "action":"osascript -e 'tell application \"System Events\" to shut down'"},

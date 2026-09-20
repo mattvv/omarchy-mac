@@ -129,6 +129,10 @@ automatically-unhide-macos-hidden-apps = true
     alt-ctrl-shift-space = 'exec-and-forget __HOME__/.local/bin/theme_menu.sh'
     # Background picker — Omarchy SUPER+CTRL+SPACE
     alt-ctrl-space       = 'exec-and-forget __HOME__/.local/bin/bg_menu.sh'
+    # The Omarchy menu — upstream is SUPER+ALT+SPACE, but ⌥⌘Space is already
+    # macOS's "Show Finder search window", so: ⌥O for Omarchy. Note this takes
+    # ⌥O away from typing ø on a US layout.
+    alt-o                = 'exec-and-forget __HOME__/.local/bin/menu.sh'
 
     # Modes
     alt-r               = 'mode resize'

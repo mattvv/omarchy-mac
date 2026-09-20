@@ -21,14 +21,19 @@ has no honest macOS equivalent. Each item below says what we build, or why we do
 
 ## P0 — the menu engine
 
-- [ ] `--menu` list mode in `bin/omarchy-picker.swift`: filterable rows with Nerd Font
-      icons, arrow/Return/Esc, real text input for the query
-- [ ] `config/menu.jsonc` — upstream's schema: dotted ids imply hierarchy, `action` → run,
+- [x] `--menu` list mode in `bin/omarchy-picker.swift`: NSTableView + NSSearchField,
+      AppKit's own field editor, IME-safe navigation, `performKeyEquivalent` for ⌘A/C/V
+      since a bundle-less app has no Edit menu
+- [x] `config/menu.jsonc` — upstream's schema: dotted ids imply hierarchy, `action` → run,
       otherwise submenu; `icon`, `label`, `aliases`, `when`, `checked`
-- [ ] `bin/menu.py` — JSONC parse under Python 3.9, route resolution, dispatch
-- [ ] `bin/menu.sh` — wrapper, `OMARCHY_WORKSPACE` capture, restore guard
-- [ ] Submenu descent without the overlay flashing between levels
-- [ ] Keybinding (⌥O — ⌥⌘Space is macOS "Show Finder search window")
+- [x] `bin/menu.py` — JSONC parse under Python 3.9, route resolution, dispatch
+- [x] `bin/menu.sh` — wrapper, `OMARCHY_WORKSPACE` capture, restore guard
+- [x] Submenu descent in place — the process stays alive and reloads rows from `menu.py`,
+      so a three-deep menu does not pay the close-excursion three times.
+      **Not keyboard-verified**: descending needs a keypress, which cannot be driven
+      without typing into a live session. The backend call it makes is tested.
+- [x] Keybinding ⌥O (⌥⌘Space is macOS "Show Finder search window"). Note it takes ⌥O
+      away from typing `ø` on a US layout.
 - [ ] Bar: leftmost item opens the menu, like omarchy's
 
 ## P1 — style  (upstream: 20 entries)

@@ -159,6 +159,7 @@ OUR_SCRIPTS = {
     "theme_menu.sh": "Theme picker",
     "bg_menu.sh": "Background picker",
     "menu.sh": "Omarchy menu",
+    "keybindings_menu.sh": "Keybindings reference",
     "layout_toggle.sh": "Toggle layout (tiles / accordion)",
     "display.py": "Display scale",
 }
@@ -227,10 +228,14 @@ def describe_exec(rest: str) -> str:
         return f"Open {open_app.group(1)}"
     if re.match(r"^open https?://\S+$", rest):
         return "Open " + rest.split()[-1]
-    for script, label in OUR_SCRIPTS.items():
-        if script in rest:
-            tail = rest.rsplit(script, 1)[1].strip()
-            return f"{label} {tail}".strip()
+    # Match the basename exactly. A substring test looks fine until two of our
+    # scripts share a suffix: "menu.sh" is inside "keybindings_menu.sh", so the
+    # keybindings viewer described itself as the Omarchy menu.
+    for token in rest.split():
+        name = token.rsplit("/", 1)[-1]
+        if name in OUR_SCRIPTS:
+            tail = rest.split(token, 1)[1].strip()
+            return f"{OUR_SCRIPTS[name]} {tail}".strip()
     if re.match(r"^\S*sketchybar --trigger \S+$", rest):
         return "refresh the bar"
     if "sketchybar" in rest:
@@ -377,6 +382,9 @@ def test() -> int:
         ("volume set 1000", "Volume set 1000"),
         ("layout tiles banana", "layout tiles banana"),   # unrecognised, raw
         ("frobnicate --hard", "frobnicate --hard"),       # unknown verb, raw
+        # "menu.sh" is a substring of "keybindings_menu.sh": match basenames.
+        ("exec-and-forget /Users/x/.local/bin/keybindings_menu.sh", "Keybindings reference"),
+        ("exec-and-forget /Users/x/.local/bin/menu.sh", "Omarchy menu"),
     ]
     for command, want in described:
         got = describe_one(command)

@@ -133,6 +133,9 @@ automatically-unhide-macos-hidden-apps = true
     # macOS's "Show Finder search window", so: ⌥O for Omarchy. Note this takes
     # ⌥O away from typing ø on a US layout.
     alt-o                = 'exec-and-forget __HOME__/.local/bin/menu.sh'
+    # Keybindings reference — ⌥K. Upstream reaches this through the menu only;
+    # a cheat sheet you have to navigate to is half a cheat sheet.
+    alt-k                = 'exec-and-forget __HOME__/.local/bin/keybindings_menu.sh'
 
     # Modes
     alt-r               = 'mode resize'

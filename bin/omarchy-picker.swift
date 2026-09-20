@@ -82,6 +82,9 @@ func parseArgs() -> Options {
     return o
 }
 
+/// Reads stdin to EOF, which can only ever happen once -- call it twice and the
+/// second call returns nothing at all. It is called from exactly one place, on a
+/// background queue, after the window is already up.
 func readRows() -> [Row] {
     let data = FileHandle.standardInput.readDataToEndOfFile()
     let text = String(data: data, encoding: .utf8) ?? ""
@@ -598,8 +601,6 @@ final class PickerPanel: NSPanel {
 }
 
 let opts = parseArgs()
-let rows = readRows()
-if rows.isEmpty { exit(1) }
 
 // Captured before activating, while the answer is still someone else.
 let previousApp = NSWorkspace.shared.frontmostApplication

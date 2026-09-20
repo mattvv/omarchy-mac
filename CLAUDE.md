@@ -113,6 +113,11 @@ Each of these cost real time to diagnose. Don't repeat them.
   terminal and fails from every button. Reproduce it with
   `env -i HOME="$HOME" PATH=/usr/bin:/bin /bin/bash <script>`, and resolve `sketchybar`,
   `borders`, `pgrep` and `osascript` through `tool()` rather than naming them bare.
+- **`readRows()` drains stdin, so it can only be called once.** A leftover call at the top
+  of the file plus the new one on the background queue meant the second read hit EOF, got
+  nothing, and `exit(1)` before the window ever appeared. `pgrep -f OmarchyPicker` during a
+  test is the check that catches this: a workspace timeline that never moves looks
+  identical whether the picker behaved or never opened at all.
 - **The overlay must appear before anything else happens.** The picker shows its window
   first and reads its rows afterwards, on a background queue. Reading them first cost about
   half a second of blank screen between the launcher starting the process and anything

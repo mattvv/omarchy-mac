@@ -79,8 +79,14 @@ Each of these cost real time to diagnose. Don't repeat them.
 - **Never `killall AeroSpace` to "fix" something.** Relaunching costs its Accessibility
   grant and needs a manual re-toggle. Validate the config instead:
   `python3 -c "import tomllib;tomllib.load(open('$HOME/.aerospace.toml','rb'))"`
-- **`sketchybar --query` silently omits** `background`, popup `drawing`, and `notch_width`.
-  Absence there is not evidence of failure — don't chase it.
+- **`sketchybar --query` silently omits** `background`, popup `drawing`, `notch_width`
+  **and `click_script`** — no item reports a click script, whether it has one or not.
+  Absence there is not evidence of failure; verify the rc file instead.
+- **A menu action runs with the launcher's environment, not yours.** `sketchybar --bar
+  hidden=toggle` works from a terminal and fails with `command not found` from the bar, a
+  keybinding or Raycast — into a pipe nobody reads, so the row just appears to do nothing.
+  `menu.py` sets PATH explicitly and backfills `USER`, without which `sketchybar-msg`
+  aborts outright. The test suite runs a real action under `env -i` with neither.
 - **sketchybar accepts invalid-in-practice properties without error.** `notch_width` returns
   rc=0 and does nothing; `notch_display_height` returns rc=0 and blanks the bar. A bogus
   property *does* error, so silence only proves the name exists.

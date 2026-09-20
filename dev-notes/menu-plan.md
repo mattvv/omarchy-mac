@@ -34,12 +34,13 @@ has no honest macOS equivalent. Each item below says what we build, or why we do
       without typing into a live session. The backend call it makes is tested.
 - [x] Keybinding ⌥O (⌥⌘Space is macOS "Show Finder search window"). Note it takes ⌥O
       away from typing `ø` on a US layout.
-- [ ] Bar: leftmost item opens the menu, like omarchy's
+- [x] Bar: the leftmost logo opens the menu. It had been wired to `open -a Raycast` —
+      the same mistake of treating the launcher as the system menu.
 
 ## P1 — style  (upstream: 20 entries)
 
-- [ ] `style.theme` → existing theme picker, moved under the menu
-- [ ] `style.background` → existing background picker
+- [x] `style.theme` → existing theme picker, reached from the menu
+- [x] `style.background` → existing background picker, plus Next Background
 - [ ] `style.font` → pick a terminal font, write to Ghostty + WezTerm theme files
 - [ ] `style.bar.position` → sketchybar `position=top|bottom`; left/right N/A (sketchybar
       is horizontal only — say so rather than faking it)
@@ -48,11 +49,15 @@ has no honest macOS equivalent. Each item below says what we build, or why we do
 
 ## P2 — system  (upstream: 7 entries, all map)
 
-- [ ] `system.lock` → `pmset displaysleepnow` / CGSession suspend
-- [ ] `system.suspend` → `pmset sleepnow`
-- [ ] `system.logout` / `reboot` / `shutdown` → osascript System Events
-- [ ] `system.screensaver` → open ScreenSaverEngine
-- [ ] `system.hibernate` → N/A on Apple Silicon; omit with a note
+All six are in the menu and their commands are checked to exist by the test suite.
+They are **not executed** in tests, for obvious reasons — a test that verifies
+Shutdown works is a test you run once.
+
+- [x] `system.lock` → `pmset displaysleepnow` (CGSession is gone in macOS 15)
+- [x] `system.suspend` → `pmset sleepnow`
+- [x] `system.logout` / `reboot` / `shutdown` → osascript System Events
+- [x] `system.screensaver` → `open -a ScreenSaverEngine`
+- [x] `system.hibernate` → absent: Apple Silicon has no hibernate
 
 ## P3 — learn  (upstream: 9 entries) — includes the keybindings app
 
@@ -72,7 +77,7 @@ has no honest macOS equivalent. Each item below says what we build, or why we do
 - [ ] `trigger.toggle.idle-lock` → `caffeinate` on/off
 - [ ] `trigger.toggle.nightlight` → Night Shift
 - [ ] `trigger.toggle.notifications` → Do Not Disturb / Focus
-- [ ] `trigger.toggle.top-bar` → existing `sketchybar --bar hidden=toggle`
+- [x] `trigger.toggle.top-bar` → `sketchybar --bar hidden=toggle`, under Style › Menu Bar
 - [ ] `trigger.share.*` → AirDrop / `shortcuts` share sheet
 - [ ] `trigger.hardware.mirror-display` → `displayplacer` (already a dependency)
 

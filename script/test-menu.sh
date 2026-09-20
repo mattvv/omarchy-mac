@@ -55,6 +55,29 @@ while IFS=$'\t' read -r key cmd; do
   fi
 done < /tmp/menu-actions.txt
 
+echo "dispatch"
+# End to end, in the environment that keeps breaking things: no PATH, no USER.
+# style.bar.toggle is the one action with a state you can read back, and running
+# it twice leaves the bar as it was found.
+pause() { python3 -c "import time;time.sleep($1)"; }
+hidden_now() { sketchybar --query bar | python3 -c "import sys,json;print(json.load(sys.stdin)['hidden'])"; }
+if command -v sketchybar >/dev/null 2>&1; then
+  d0=$(hidden_now)
+  env -i HOME="$HOME" PATH=/usr/bin:/bin /usr/bin/python3 bin/menu.py run style.bar.toggle >/dev/null 2>&1
+  pause 1
+  d1=$(hidden_now)
+  env -i HOME="$HOME" PATH=/usr/bin:/bin /usr/bin/python3 bin/menu.py run style.bar.toggle >/dev/null 2>&1
+  pause 1
+  d2=$(hidden_now)
+  if [ "$d0" != "$d1" ] && [ "$d0" = "$d2" ]; then
+    ok "menu.py run works with no PATH and no USER ($d0 -> $d1 -> $d2)"
+  else
+    bad "menu.py run under a bare environment: $d0 -> $d1 -> $d2"
+  fi
+else
+  ok "sketchybar absent, dispatch test skipped"
+fi
+
 echo "icons"
 # An icon the font has no glyph for renders as nothing or as a tofu box, and the
 # menu looks broken without anything raising an error. Read the cmap and check.

@@ -111,10 +111,23 @@ def load() -> dict:
 
 def env() -> dict:
     """Actions are written against $OMARCHY_BIN so the file does not hardcode a
-    home directory the way the sed-substituted configs do."""
+    home directory the way the sed-substituted configs do.
+
+    PATH is set explicitly rather than inherited. Launched from the bar, a
+    keybinding or Raycast, this process has no Homebrew on PATH, and an action
+    as ordinary as `sketchybar --bar hidden=toggle` then fails with
+    "command not found" -- into a pipe nobody reads, so the menu row simply
+    appears to do nothing."""
     e = dict(os.environ)
     e["OMARCHY_BIN"] = str(BIN)
     e["OMARCHY_REPO"] = str(REPO)
+    e["PATH"] = ":".join(["/opt/homebrew/bin", "/usr/local/bin", str(BIN),
+                          "/usr/bin", "/bin", "/usr/sbin", "/sbin"])
+    # sketchybar-msg aborts outright without USER ("'env USER' not set!"), and
+    # while launchd does set it for a GUI launch, backfilling costs nothing and
+    # removes one way for an action to die silently.
+    e.setdefault("USER", os.environ.get("LOGNAME") or Path.home().name)
+    e.setdefault("HOME", str(HOME))
     return e
 
 

@@ -32,8 +32,11 @@ has no honest macOS equivalent. Each item below says what we build, or why we do
       so a three-deep menu does not pay the close-excursion three times.
       **Not keyboard-verified**: descending needs a keypress, which cannot be driven
       without typing into a live session. The backend call it makes is tested.
-- [x] Keybinding ⌥O (⌥⌘Space is macOS "Show Finder search window"). Note it takes ⌥O
-      away from typing `ø` on a US layout.
+- [x] Keybindings: ⌘Space opens the menu, ⌥O also does, ⌥K opens the keybindings
+      reference. ⌘Space means the menu is the launcher, so a query searches the whole
+      tree *and* every installed app (123 here) rather than the level you are standing on.
+      Raycast keeps ⌥Space; its own ⌘Space hotkey has to be moved by hand in Raycast →
+      Settings → General, since it stores it internally with nothing readable on disk.
 - [x] Bar: the leftmost logo opens the menu. It had been wired to `open -a Raycast` —
       the same mistake of treating the launcher as the system menu.
 

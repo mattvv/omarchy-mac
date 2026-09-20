@@ -56,6 +56,7 @@ struct Options {
     var altKey: Character? = nil
     var workspace = ""          // AeroSpace workspace to return to on dismissal
     var menuBackend = ""        // path to menu.py -- presence selects list mode
+    var corpusBackend = ""      // same script, asked for everything searchable
     var background   = "#101315"
     var foreground   = "#cacccc"
     var accent       = "#798186"
@@ -76,6 +77,7 @@ func parseArgs() -> Options {
         case "--alt-key":    o.altKey = next().lowercased().first
         case "--workspace":  o.workspace = next()
         case "--menu":       o.menuBackend = next()
+        case "--corpus":     o.corpusBackend = next()
         case "--background": o.background = next()
         case "--foreground": o.foreground = next()
         case "--accent":     o.accent = next()
@@ -684,6 +686,12 @@ final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     /// Width of the chord column, measured over *every* row rather than the
     /// filtered ones, so the labels do not shuffle sideways while typing.
     var chordWidth: CGFloat = 0
+    /// Everything searchable, loaded once in the background. A query looks here
+    /// rather than at the current level: ⌘Space took the launcher's key, so
+    /// typing "theme" must find the theme picker from anywhere, and typing an
+    /// app name must find the app.
+    var corpus: [MenuRow] = []
+    var searchingEverything = false
     var isReferenceView: Bool { rows.contains { !$0.leading.isEmpty } }
     var stack: [(route: String, rows: [MenuRow], query: String)] = []
 
@@ -786,13 +794,15 @@ final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
                 : ($0.leading as NSString)
                     .size(withAttributes: [.font: font]).width + 18 * s
         }.max() ?? 0
-        title.stringValue = route == "root" ? "Omarchy  ⌥O"
+        title.stringValue = route == "root" ? "Omarchy  ⌘Space"
                                             : route.replacingOccurrences(of: ".", with: " › ")
         applyFilter(input.field.stringValue)
     }
 
     func applyFilter(_ q: String) {
-        shown = rows.filter { $0.matches(q) }
+        searchingEverything = !q.isEmpty && !corpus.isEmpty
+        let source = searchingEverything ? corpus : rows
+        shown = source.filter { $0.matches(q) }
         lines = []
         var lastGroup = ""
         for row in shown {
@@ -855,11 +865,39 @@ final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     func escapePressed() {
         if !input.field.stringValue.isEmpty {
             input.field.stringValue = ""
-            applyFilter("")
+            applyFilter("")            // back to the level, out of global search
         } else if !stack.isEmpty {
             pop()
         } else {
             dismiss(printing: nil, code: 1)
+        }
+    }
+
+    func loadCorpus() {
+        let backend = opts.corpusBackend
+        guard !backend.isEmpty else { return }
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+            task.arguments = [backend, "corpus"]
+            let pipe = Pipe()
+            task.standardOutput = pipe
+            task.standardError = FileHandle.nullDevice
+            task.standardInput = FileHandle.nullDevice
+            do { try task.run() } catch { return }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            task.waitUntilExit()
+            guard task.terminationStatus == 0 else { return }
+            let parsed = parseMenuRows(String(data: data, encoding: .utf8) ?? "")
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.corpus = parsed
+                // A query typed while this was still loading searched only the
+                // current level; redo it now that there is more to search.
+                if !self.input.field.stringValue.isEmpty {
+                    self.applyFilter(self.input.field.stringValue)
+                }
+            }
         }
     }
 
@@ -1132,6 +1170,7 @@ DispatchQueue.global(qos: .userInitiated).async {
             let parsed = parseMenuRows(text)
             if parsed.isEmpty { exit(1) }
             menu.setRows(parsed, route: "root")
+            menu.loadCorpus()
         } else {
             let parsed = parseRows(text)
             if parsed.isEmpty { exit(1) }

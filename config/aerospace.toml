@@ -116,6 +116,10 @@ automatically-unhide-macos-hidden-apps = true
     alt-shift-m     = 'exec-and-forget open -a "Spotify"'        # SUPER + SHIFT + M
     alt-shift-f     = 'exec-and-forget open -a "Finder"'         # SUPER + SHIFT + F
     alt-shift-slash = 'exec-and-forget open -a "1Password"'      # SUPER + SHIFT + SLASH
+    # ⌘Space opens the Omarchy menu, which also searches apps -- so it is the
+    # launcher as well. Raycast keeps ⌥Space; move its own hotkey off ⌘Space in
+    # Raycast → Settings → General, or the two will fight over it.
+    cmd-space       = 'exec-and-forget __HOME__/.local/bin/menu.sh'
     alt-space       = 'exec-and-forget open -a "Raycast"'        # SUPER + SPACE
 
     # Toggle the top bar — Omarchy SUPER + SHIFT + SPACE

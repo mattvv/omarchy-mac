@@ -6,6 +6,7 @@ plugin render it. Quickshell is Linux-only, so the rendering is ours
 (omarchy-picker --menu) and this is the part that knows what the menu *is*:
 
   menu.py rows [route]     TSV rows for the picker: id, icon, label, kind
+  menu.py corpus           everything searchable: the whole tree, and every app
   menu.py run <id>         run that entry's action
   menu.py resolve <name>   canonical id for an alias or a route
   menu.py tree             the whole menu, for looking at
@@ -191,6 +192,17 @@ def run(entry_id: str) -> int:
     # layers rather than trusting one.
     if entry_id.startswith("kb:"):
         sys.exit("keybinding rows are reference only and are never executed")
+
+    if entry_id.startswith("app:"):
+        # The id carries the bundle path, so check it is one: an existing .app
+        # under a root we scanned, opened by path rather than by name.
+        path = entry_id[4:]
+        if not (path.endswith(".app") and os.path.isdir(path)
+                and any(path.startswith(root + "/") for root in APP_ROOTS)):
+            sys.exit(f"not an application we listed: {path}")
+        return subprocess.Popen(["/usr/bin/open", path], env=env(),
+                                stdin=subprocess.DEVNULL, start_new_session=True).pid
+
     entries = load()
     value = entries.get(entry_id)
     if value is None:
@@ -203,6 +215,75 @@ def run(entry_id: str) -> int:
     return subprocess.Popen(["bash", "-c", action], env=env(),
                             stdin=subprocess.DEVNULL,
                             start_new_session=True).pid
+
+
+# ── Global search ────────────────────────────────────────────────────────────
+#
+# Taking ⌘Space from the launcher means the menu has to answer what the launcher
+# answered: type "theme" and get the theme picker, type an app name and get the
+# app. So a query searches the whole tree and every installed application, not
+# just the level you happen to be standing on.
+
+APP_ROOTS = ["/Applications", "/System/Applications", str(HOME / "Applications"),
+             "/System/Applications/Utilities", "/Applications/Utilities"]
+
+
+def applications() -> list:
+    """Every .app one level down from the usual roots. Deliberately not a deep
+    walk: /Applications/Xcode.app alone contains hundreds of nested bundles, and
+    none of them is a thing anyone means to launch."""
+    found, seen = [], set()
+    for root in APP_ROOTS:
+        try:
+            entries = sorted(os.scandir(root), key=lambda e: e.name)
+        except OSError:
+            continue
+        for entry in entries:
+            if entry.name.endswith(".app"):
+                name = entry.name[:-4]
+                if name not in seen:
+                    seen.add(name)
+                    found.append((name, entry.path))
+            elif entry.is_dir():
+                try:
+                    inner = sorted(os.scandir(entry.path), key=lambda e: e.name)
+                except OSError:
+                    continue
+                for sub in inner:
+                    if sub.name.endswith(".app"):
+                        name = sub.name[:-4]
+                        if name not in seen:
+                            seen.add(name)
+                            found.append((name, sub.path))
+    return found
+
+
+def breadcrumb(entries: dict, key: str) -> str:
+    """Style › Theme, so a hit from a query says where it lives."""
+    parts, labels = key.split("."), []
+    for i in range(len(parts)):
+        node = ".".join(parts[:i + 1])
+        labels.append(entries.get(node, {}).get("label", parts[i]))
+    return " › ".join(labels)
+
+
+def corpus() -> str:
+    """Everything searchable, in one pass: menu entries anywhere in the tree,
+    then applications."""
+    entries = load()
+    out = []
+    for key, value in entries.items():
+        if "action" not in value:
+            continue                      # submenus are containers, not results
+        if not visible(value):
+            continue
+        out.append("\t".join([key, value.get("icon", ""), breadcrumb(entries, key),
+                               "action", " ".join(value.get("aliases", [])),
+                               "", "Omarchy", ""]))
+    for name, path in applications():
+        out.append("\t".join(["app:" + path, "", name, "action", "", "",
+                               "Applications", path]))
+    return "\n".join(out)
 
 
 def tree() -> str:
@@ -219,7 +300,9 @@ def tree() -> str:
 if __name__ == "__main__":
     argv = sys.argv[1:]
     cmd = argv[0] if argv else "tree"
-    if cmd == "rows":
+    if cmd == "corpus":
+        print(corpus())
+    elif cmd == "rows":
         print(rows(argv[1] if len(argv) > 1 else "root"))
     elif cmd == "run" and len(argv) > 1:
         run(argv[1])

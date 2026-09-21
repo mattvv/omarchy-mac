@@ -1,4 +1,5 @@
-# AeroSpace — Omarchy-flavored, Solitude theme
+# AeroSpace — Omarchy-flavoured. Colours come from the active theme, not here:
+# bin/theme.py regenerates the borders command on every switch.
 # Omarchy's SUPER is mapped to `alt` here: using cmd would clobber macOS
 # shortcuts (cmd-w/t/f/s/l/1-9) in every app.
 

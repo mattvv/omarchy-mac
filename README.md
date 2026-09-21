@@ -211,17 +211,17 @@ printed, logged, or cached.** Only the response is cached, for 5 minutes.
 
 ## Theme
 
-Omarchy's **Solitude** — a desaturated near-monochrome dark palette.
+**Ristretto** is the default, and what every screenshot above shows — warm, dark, coffee.
 
 | | |
 |---|---|
-| background | `#101315` (terminal uses `#080a0b`) |
-| foreground | `#cacccc` |
-| accent | `#798186` |
-| borders | gradient `#798186 → #cacccc` |
+| background | `#2c2525` |
+| foreground | `#e6d9db` |
+| accent | `#f38d70` |
+| selection | `#403e41` |
 
-It is the default, not a commitment — every other Omarchy theme is one `⌥⌃⇧Space` away.
-See [Themes](#themes).
+It is a default, not a commitment: every other Omarchy theme is one `⌥⌃⇧Space` away, and
+`OMARCHY_THEME=solitude ./install.sh` starts you somewhere else. See [Themes](#themes).
 
 ## Themes
 
@@ -426,8 +426,8 @@ bin/
   bg_menu.sh                  ⌥⌃Space  — pick a background
 config/
   aerospace.toml              window manager + keybindings
-  wezterm.lua                 WezTerm, Solitude
-  ghostty/config              Ghostty, Solitude
+  wezterm.lua                 WezTerm, themed from the palette
+  ghostty/config              Ghostty, themed from the palette
   sketchybar/
     sketchybarrc              bar layout
     plugins/                  panel scripts

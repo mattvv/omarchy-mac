@@ -81,12 +81,12 @@ printf '%s\n' "$REPO" > "$HOME/.local/share/omarchy-mac/repo"
 say "Generating Raycast script commands"
 python3 "$HOME/.local/bin/theme.py" raycast >/dev/null
 
-python3 "$HOME/.local/bin/theme.py" set "${OMARCHY_THEME:-solitude}" >/dev/null 2>&1 || true
+python3 "$HOME/.local/bin/theme.py" set "${OMARCHY_THEME:-ristretto}" >/dev/null 2>&1 || true
 
 say "Backgrounds"
 # `theme.py set` above only pulled the first background inline. Fetch the whole
 # set now so the background picker has something to show on its first open.
-python3 "$HOME/.local/bin/theme.py" fetch "${OMARCHY_THEME:-solitude}" 2>/dev/null || true
+python3 "$HOME/.local/bin/theme.py" fetch "${OMARCHY_THEME:-ristretto}" 2>/dev/null || true
 
 say "Freeing Cmd+Space from Spotlight (for Raycast)"
 defaults write com.apple.symbolichotkeys AppleSymbolicHotKeys -dict-add 64 '

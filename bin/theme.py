@@ -280,8 +280,8 @@ def write_starship(name, c):
 
 def rounding(c) -> int:
     """Corner radius for this theme's UI. Upstream expresses it as Hyprland
-    window rounding, which macOS does not let us set -- windows are rounded by
-    the OS. It lands on the surfaces we do own: the menu card and the bar."""
+    window rounding, which this port cannot apply to macOS windows. It lands
+    on the surfaces we do own: the menu card and the bar."""
     try:
         return int(c.get("rounding", 0) or 0)
     except ValueError:

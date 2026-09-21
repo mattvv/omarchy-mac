@@ -16,7 +16,7 @@ fi
 if [ "$SID" = "$FOCUS" ]; then
   sketchybar --set "$NAME" \
     background.drawing=on background.color=$SEL \
-    background.corner_radius=5 background.height=24 \
+    background.corner_radius=${ROUNDING:-0} background.height=24 \
     label.color=$FG
 else
   sketchybar --set "$NAME" background.drawing=off label.color=$MUTED

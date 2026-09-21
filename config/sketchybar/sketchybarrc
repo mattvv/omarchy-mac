@@ -14,12 +14,16 @@ ACCENT=${ACCENT:-0xff798186}
 MUTED=${MUTED:-0xff4b4e55}
 SEL=${SEL:-0xff343d41}
 DARKBG=${DARKBG:-0xff0c0e10}
+# Corner radius belongs to the theme, not to the bar: theme.sh exports it and
+# only solitude sets it above 0. A bare ROUNDING=0 in the block below clobbered
+# that on every --reload, so the bar's item backgrounds stayed square even on a
+# rounded theme -- and nothing put it back, since bar.sh never stored ROUNDING.
+ROUNDING=${ROUNDING:-0}
 
 # Bar position and transparency, chosen from the menu and remembered here.
 # Sourced after theme.sh so it can override the colour's alpha byte.
 BAR_POSITION=top
 BAR_ALPHA=ff
-ROUNDING=0
 source "$HOME/.local/state/omarchy-mac/bar.sh" 2>/dev/null
 BG="0x${BAR_ALPHA}${BG: -6}"
 

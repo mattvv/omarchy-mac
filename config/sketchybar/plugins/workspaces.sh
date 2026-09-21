@@ -16,7 +16,7 @@ for sid in $(seq 1 10); do
   if [ "$sid" = "$focused" ]; then
     args+=(--set space.$sid drawing=on \
       background.drawing=on background.color=$SEL \
-      background.corner_radius=5 background.height=24 \
+      background.corner_radius=${ROUNDING:-0} background.height=24 \
       label.color=$FG)
   elif [[ $used == *" $sid "* ]]; then
     args+=(--set space.$sid drawing=on background.drawing=off label.color=$MUTED)

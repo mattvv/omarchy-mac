@@ -17,6 +17,7 @@ ws_before="${OMARCHY_WORKSPACE:-}"
 
 python3 "$BIN/keybindings.py" rows | "$PICKER" --menu "$BIN/keybindings.py" \
   --workspace "$ws_before" \
+  --selection "${SEL:-}" \
   --background "${BG:-0xff101315}" --foreground "${FG:-0xffcacccc}" \
   --accent "${ACCENT:-0xff798186}" --dark-background "${DARKBG:-0xff0c0e10}" >/dev/null
 

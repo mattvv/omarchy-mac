@@ -37,6 +37,16 @@ func hexColor(_ raw: String, alpha: CGFloat = 1) -> NSColor {
                    alpha:   alpha)
 }
 
+/// Opaque mix of two colours; `weight` is the first colour's share.
+func blended(_ a: NSColor, toward b: NSColor, weight: CGFloat) -> NSColor {
+    let x = a.usingColorSpace(.sRGB) ?? a
+    let y = b.usingColorSpace(.sRGB) ?? b
+    return NSColor(srgbRed: x.redComponent * weight + y.redComponent * (1 - weight),
+                   green: x.greenComponent * weight + y.greenComponent * (1 - weight),
+                   blue: x.blueComponent * weight + y.blueComponent * (1 - weight),
+                   alpha: 1)
+}
+
 // ── Input ────────────────────────────────────────────────────────────────────
 
 struct Row {
@@ -59,6 +69,7 @@ struct Options {
     var corpusBackend = ""      // same script, asked for everything searchable
     var route = "root"          // which route the rows on stdin belong to
     var background   = "#101315"
+    var selection    = ""       // palette's selection colour; accent if unset
     var foreground   = "#cacccc"
     var accent       = "#798186"
     var darkBackground = "#0c0e10"
@@ -81,6 +92,7 @@ func parseArgs() -> Options {
         case "--corpus":     o.corpusBackend = next()
         case "--route":      o.route = next()
         case "--background": o.background = next()
+        case "--selection":  o.selection = next()
         case "--foreground": o.foreground = next()
         case "--accent":     o.accent = next()
         case "--dark-background": o.darkBackground = next()
@@ -680,6 +692,19 @@ final class MenuInput: NSObject, NSSearchFieldDelegate {
     }
 }
 
+/// A row that highlights in the current palette rather than the system accent.
+final class ThemedRowView: NSTableRowView {
+    var selectionColor: NSColor = .selectedContentBackgroundColor
+    var radius: CGFloat = 6
+
+    override func drawSelection(in dirtyRect: NSRect) {
+        guard isSelected else { return }
+        selectionColor.setFill()
+        NSBezierPath(roundedRect: bounds.insetBy(dx: 4, dy: 1),
+                     xRadius: radius, yRadius: radius).fill()
+    }
+}
+
 enum MenuLine {
     case group(String)
     case item(MenuRow)
@@ -779,6 +804,11 @@ final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         table.backgroundColor = .clear
         table.rowHeight = 34 * s
         table.intercellSpacing = NSSize(width: 0, height: 2 * s)
+        // Stays .regular. Setting .none does not mean "I will draw it myself" --
+        // it means the table stops drawing selection at all and never calls
+        // drawSelection, so the custom row view below is simply never asked.
+        // With .regular the override replaces the system paint, which is what
+        // we want: the palette's colour instead of the system grey.
         table.selectionHighlightStyle = .regular
         table.dataSource = self
         table.delegate = self
@@ -960,6 +990,29 @@ final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     // MARK: table
 
     func numberOfRows(in tableView: NSTableView) -> Int { lines.count }
+
+    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+        let view = ThemedRowView()
+        // The palette's selection colour is meant for exactly this; accent at
+        // low weight is the fallback for a palette that omits it.
+        // Blended opaquely toward the card, not drawn at low alpha. Alpha put
+        // the result at the mercy of whatever showed through and came out
+        // nearly invisible; a blend lands on a known colour. Painting
+        // `selection` solid is not an option either -- several palettes set it
+        // to a near white (ristretto's is #d0d0d0), which puts light text on a
+        // light bar.
+        // Most palettes set `selection` to a near-neutral dark grey, so honouring
+        // it literally gives every theme almost the same bar. The accent is the
+        // colour that actually distinguishes one theme from another, so the
+        // highlight is an accent tint on the card: everforest reads green,
+        // ristretto reads salmon, and the label stays readable on both.
+        let tint = opts.selection.isEmpty ? opts.accent : opts.selection
+        let base = blended(hexColor(opts.accent), toward: hexColor(tint), weight: 0.55)
+        view.selectionColor = blended(base, toward: hexColor(opts.darkBackground),
+                                      weight: 0.38)
+        view.radius = 6 * s
+        return view
+    }
 
     func tableView(_ tableView: NSTableView, isGroupRow row: Int) -> Bool {
         itemAt(row) == nil

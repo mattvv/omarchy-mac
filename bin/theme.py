@@ -218,6 +218,65 @@ def write_ghostty(name, c):
     GH_THEME.write_text("\n".join(lines) + "\n")
 
 
+STARSHIP = HOME / ".config/starship.toml"
+STARSHIP_OPEN = "# >>> omarchy-mac theme (generated) >>>"
+STARSHIP_CLOSE = "# <<< omarchy-mac theme <<<"
+
+# Starship's own names. A palette may shadow the standard ones, which is the
+# whole trick here: a prompt written in "bold cyan" picks up the theme without
+# a single module being rewritten. Verified -- with the palette active,
+# `bold cyan` emits 38;2;243;141;112 rather than ANSI 36.
+STARSHIP_COLORS = [
+    ("black", "dark_background"), ("red", "red"), ("green", "green"),
+    ("yellow", "yellow"), ("blue", "blue"), ("purple", "magenta"),
+    ("cyan", "cyan"), ("white", "foreground"),
+    ("bright-black", "muted"), ("bright-red", "bright_red"),
+    ("bright-green", "bright_green"), ("bright-yellow", "bright_yellow"),
+    ("bright-blue", "bright_blue"), ("bright-purple", "bright_magenta"),
+    ("bright-cyan", "bright_cyan"), ("bright-white", "light_foreground"),
+    ("accent", "accent"), ("muted", "muted"),
+]
+
+
+def write_starship(name, c):
+    """Recolour starship without touching how the prompt is configured.
+
+    Starship has no include mechanism, so this is the one place the rule bends:
+    it edits the user's file. It confines itself to two marked blocks -- a root
+    `palette` key and the palette table -- and rewrites only those, leaving
+    every module exactly as found.
+
+    The root key goes before the first table header. A top-level key written
+    after any [table] belongs to that table, which is how the same mistake
+    broke the AeroSpace config earlier today."""
+    if not STARSHIP.exists():
+        return
+    text = STARSHIP.read_text()
+    text = re.sub(re.escape(STARSHIP_OPEN) + r".*?" + re.escape(STARSHIP_CLOSE) + r"\n?",
+                  "", text, flags=re.S)
+
+    lines = text.splitlines(keepends=True)
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith("["):
+            break
+    else:
+        i = len(lines)
+    head = f'{STARSHIP_OPEN}\npalette = "omarchy"\n{STARSHIP_CLOSE}\n\n'
+
+    body = [STARSHIP_OPEN, "# Regenerated on every theme switch. Delete both blocks to opt out.",
+            "[palettes.omarchy]"]
+    for starship_name, palette_key in STARSHIP_COLORS:
+        value = c.get(palette_key)
+        if value:
+            body.append(f'{starship_name} = "#{hex6(value)}"')
+    body.append(STARSHIP_CLOSE)
+
+    text = head + "".join(lines[:i]) + "".join(lines[i:])
+    if not text.endswith("\n"):
+        text += "\n"
+    STARSHIP.write_text(text + "\n" + "\n".join(body) + "\n")
+
+
 def write_zed(name, c):
     """Zed reads a theme file we own; it never reads our hand.
 
@@ -424,6 +483,7 @@ def apply(name):
     c = load(name)
     write_sketchybar(name, c); write_ghostty(name, c); write_wezterm(name, c)
     write_zed(name, c)
+    write_starship(name, c)
     set_appearance(c.get("mode", "dark"))
     STATE.mkdir(parents=True, exist_ok=True)
     (STATE / "current-theme").write_text(name + "\n")

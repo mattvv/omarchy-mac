@@ -287,6 +287,28 @@ a switch regenerates three files that the configs *include*:
 | `~/.config/ghostty/theme.conf` | `config-file = ?"…"` |
 | `~/.config/wezterm-theme.lua` | `dofile`, applied *after* the bar plugin |
 | `~/.config/zed/themes/omarchy.json` | Zed, once you select the **Omarchy** theme |
+| two marked blocks in `~/.config/starship.toml` | starship — see below |
+
+### Starship
+
+Starship has no include mechanism, so this is the one place the rule bends: a theme switch
+edits your `starship.toml`. It confines itself to two marked blocks — a `palette` key and
+the palette table — and leaves every module exactly as it found it.
+
+The trick is that a starship palette may shadow the **standard** colour names. A prompt
+written in `bold cyan` keeps saying `bold cyan` and simply starts emitting the theme's
+cyan. Nothing about how your prompt is configured has to change, and deleting the two
+blocks removes the theming entirely.
+
+```toml
+# >>> omarchy-mac theme (generated) >>>
+palette = "omarchy"
+# <<< omarchy-mac theme <<<
+```
+
+The root key goes before the first table header, because a top-level key written after any
+`[table]` belongs to that table — the same TOML trap that briefly broke the AeroSpace
+config with `on-window-detected[0].scrolling-peek-width: Unknown key`.
 
 ### Zed
 

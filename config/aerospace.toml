@@ -116,6 +116,10 @@ automatically-unhide-macos-hidden-apps = true
     alt-shift-m     = 'exec-and-forget open -a "Spotify"'        # SUPER + SHIFT + M
     alt-shift-f     = 'exec-and-forget open -a "Finder"'         # SUPER + SHIFT + F
     alt-shift-slash = 'exec-and-forget open -a "1Password"'      # SUPER + SHIFT + SLASH
+    # ⌘Space opens the Omarchy menu, which also searches apps -- so it is the
+    # launcher as well. Raycast keeps ⌥Space; move its own hotkey off ⌘Space in
+    # Raycast → Settings → General, or the two will fight over it.
+    cmd-space       = 'exec-and-forget __HOME__/.local/bin/menu.sh'
     alt-space       = 'exec-and-forget open -a "Raycast"'        # SUPER + SPACE
 
     # Toggle the top bar — Omarchy SUPER + SHIFT + SPACE
@@ -129,12 +133,21 @@ automatically-unhide-macos-hidden-apps = true
     alt-ctrl-shift-space = 'exec-and-forget __HOME__/.local/bin/theme_menu.sh'
     # Background picker — Omarchy SUPER+CTRL+SPACE
     alt-ctrl-space       = 'exec-and-forget __HOME__/.local/bin/bg_menu.sh'
+    # The Omarchy menu — upstream is SUPER+ALT+SPACE, but ⌥⌘Space is already
+    # macOS's "Show Finder search window", so: ⌥O for Omarchy. Note this takes
+    # ⌥O away from typing ø on a US layout.
+    alt-o                = 'exec-and-forget __HOME__/.local/bin/menu.sh'
+    # Keybindings reference — ⌥K. Upstream reaches this through the menu only;
+    # a cheat sheet you have to navigate to is half a cheat sheet.
+    alt-k                = 'exec-and-forget __HOME__/.local/bin/keybindings_menu.sh'
 
     # Modes
     alt-r               = 'mode resize'
     alt-shift-semicolon = 'mode service'
 
-    # Keep macOS "Hide application" disabled
+    # Swallow macOS's hide shortcuts: a hidden window is invisible to a tiling
+    # WM and looks like it vanished. ⌘H hides the focused app, ⌥⌘H hides every
+    # other app -- different commands, both unwanted here.
     cmd-h     = []
     cmd-alt-h = []
 

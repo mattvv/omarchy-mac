@@ -63,7 +63,10 @@ Omarchy's `SUPER` maps to **Option (⌥)**, not Command. Using ⌘ would clobber
 | `⌥⇧M` | music | `SUPER+SHIFT+M` |
 | `⌥⇧F` | file manager | `SUPER+SHIFT+F` |
 | `⌥⇧/` | passwords | `SUPER+SHIFT+SLASH` |
-| `⌥Space` | launcher | `SUPER+SPACE` |
+| `⌘Space` | the Omarchy menu | `SUPER+ALT+SPACE` |
+| `⌥O` | the Omarchy menu | — |
+| `⌥K` | keybindings reference | — |
+| `⌥Space` | Raycast | `SUPER+SPACE` |
 | `⌥⌃⇧Space` | theme picker | `SUPER+SHIFT+CTRL+SPACE` |
 | `⌥⌃Space` | background picker | `SUPER+CTRL+SPACE` |
 | `⌥⇧Space` | toggle the bar | `SUPER+SHIFT+SPACE` |
@@ -76,6 +79,46 @@ VoiceOver — clear it in System Settings → Keyboard → Shortcuts → Input S
 
 `⌥Return` is registered by **Ghostty itself** (`keybind = global:alt+enter=new_window`),
 not AeroSpace — see Notes.
+
+## The menu
+
+Omarchy runs two launchers: **walker** opens apps, and **`omarchy-menu`** holds system
+actions. Only the first maps to Raycast. The second is this:
+
+```
+⌘Space        Style  ›  Theme · Background · Font · Menu Bar
+              Trigger › Screenshot · Screen recording · Colour picker · Stay awake
+              Setup   › Configs · Displays · Keyboard · Trackpad · DNS
+              Update  › Update omarchy-mac · Reinstall config · Date & Time
+              Install › Fonts
+              Learn   › Keybindings · Docs
+              System  › Screensaver · Lock · Suspend · Logout · Reboot · Shutdown
+```
+
+Typing searches **everything** — the whole tree and every installed application — because
+`⌘Space` is where you already reach for the launcher. `back` finds *Style › Background*;
+`ghost` finds Ghostty. Escape clears the query, then goes up a level, then closes.
+
+The menu is defined in `config/menu.jsonc` using upstream's schema: dotted ids imply
+hierarchy, an `action` runs and anything else is a submenu, and a `checked` command puts a
+tick on a row. Rows carry live state — Stay awake shows whether the assertion is up, DNS
+shows which resolver is in use, Font shows which one is set.
+
+**Only entries whose actions work on macOS are in the file.** Night Shift, Focus and the
+default browser have no supported CLI, so they have no rows rather than rows that do
+nothing. `dev-notes/menu-plan.md` maps all 340 of upstream's entries and says which are
+not coming, and why.
+
+### Keybindings reference
+
+`⌥K` lists every binding read from your own `~/.aerospace.toml`, plus Ghostty's global
+hotkey, with chords rendered in macOS order (`alt-ctrl-shift-space` → `⌃⌥⇧Space`) and
+descriptions derived from the commands rather than a table keyed on chords, which would
+rot the moment you rebind something.
+
+It is a reference card: picking a row does **not** run the binding, which is a deliberate
+divergence from upstream. Once the overlay closes, `close` would act on whatever gained
+focus and `mode resize` would strand you in a mode with nothing on screen to say so.
 
 ## The bar
 
@@ -191,6 +234,34 @@ a switch regenerates three files that the configs *include*:
 | `~/.config/sketchybar/theme.sh` | `sketchybarrc` and every plugin, via `source` |
 | `~/.config/ghostty/theme.conf` | `config-file = ?"…"` |
 | `~/.config/wezterm-theme.lua` | `dofile`, applied *after* the bar plugin |
+| `~/.config/zed/themes/omarchy.json` | Zed, once you select the **Omarchy** theme |
+
+### Zed
+
+A theme switch regenerates a full Zed theme — 130 style keys derived from the palette's
+22 colours, every one checked against Zed's own schema by the test suite.
+
+Zed is the awkward case, because a theme is *selected* in `settings.json`, which is your
+file with your comments in it. So the generated theme always carries one name, **Omarchy**.
+Select it once (`⌘K ⌘T`, or set `"theme": "Omarchy"`); after that every switch only
+rewrites the theme file, which Zed applies **live, with no restart**. We never touch your
+settings again.
+
+Three things about Zed's theme loading, each established by testing rather than docs:
+
+- **The themes registry does not recurse.** A theme at `themes/<dir>/theme.json` is never
+  read — Zed logs `Is a directory (os error 21)`. It has to be a flat file.
+- **A *new* theme file is only discovered at startup.** Rewriting one Zed already knows
+  applies immediately; adding one does not.
+- **No style key is required.** Zed's schema marks all 131 optional and fills the rest from
+  its default theme, so a partial theme renders rather than being rejected.
+
+Colours are pre-blended and opaque. Zed accepts alpha, but then the result depends on what
+is painted underneath — and with `background.appearance: blurred` that is not hypothetical.
+Text colours are nudged toward black or white only as far as WCAG 4.5:1 requires: several
+palettes have a `muted` that is fine for a bar and unreadable as a comment. The ANSI
+colours are left exactly as the palette states them — those are a contract with terminal
+programs, and a "corrected" red is no longer red.
 
 A switch also sets **macOS light/dark appearance** from the theme's `mode`. This matters
 more than the config files: browsers, Finder and native apps follow the system appearance,

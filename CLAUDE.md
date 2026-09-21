@@ -79,8 +79,27 @@ Each of these cost real time to diagnose. Don't repeat them.
 - **Never `killall AeroSpace` to "fix" something.** Relaunching costs its Accessibility
   grant and needs a manual re-toggle. Validate the config instead:
   `python3 -c "import tomllib;tomllib.load(open('$HOME/.aerospace.toml','rb'))"`
-- **`sketchybar --query` silently omits** `background`, popup `drawing`, and `notch_width`.
-  Absence there is not evidence of failure — don't chase it.
+- **`sketchybar --query` silently omits** `background`, popup `drawing`, `notch_width`
+  **and `click_script`** — no item reports a click script, whether it has one or not.
+  Absence there is not evidence of failure; verify the rc file instead.
+- **Switching DNS repeatedly in quick succession wedges the resolver.** One
+  `networksetup -setdnsservers` change settles by itself in a second or two — verified.
+  Three of them inside two seconds left `mDNSResponder` holding the old configuration:
+  `dig @8.8.8.8` still answered and `ping 1.1.1.1` still worked, but every *name* lookup
+  on the machine failed, `git push` included. `dscacheutil -flushcache` without root is a
+  no-op and `killall -HUP mDNSResponder` cannot touch a root-owned process, so the
+  documented fix needs sudo — **but cycling Wi-Fi clears it without any**:
+  `networksetup -setairportpower en0 off`, wait, `on`. Do not test DNS presets by flipping
+  through them.
+- **`pkill -f <pattern>` matches the shell that runs it.** A toggle written as
+  `pgrep -f 'caffeinate -dimsu' && pkill -f 'caffeinate -dimsu' || …` has the pattern in
+  its own `bash -c` argv, so it kills itself — the menu action exited 144 and took its
+  caller with it. Keep a pid file (`bin/stay_awake.sh`) rather than matching command lines.
+- **A menu action runs with the launcher's environment, not yours.** `sketchybar --bar
+  hidden=toggle` works from a terminal and fails with `command not found` from the bar, a
+  keybinding or Raycast — into a pipe nobody reads, so the row just appears to do nothing.
+  `menu.py` sets PATH explicitly and backfills `USER`, without which `sketchybar-msg`
+  aborts outright. The test suite runs a real action under `env -i` with neither.
 - **sketchybar accepts invalid-in-practice properties without error.** `notch_width` returns
   rc=0 and does nothing; `notch_display_height` returns rc=0 and blanks the bar. A bogus
   property *does* error, so silence only proves the name exists.
@@ -118,6 +137,22 @@ Each of these cost real time to diagnose. Don't repeat them.
   nothing, and `exit(1)` before the window ever appeared. `pgrep -f OmarchyPicker` during a
   test is the check that catches this: a workspace timeline that never moves looks
   identical whether the picker behaved or never opened at all.
+- **The workspace excursion cannot be prevented, only corrected — three hypotheses were
+  measured and all three failed.** Do not re-litigate this without new evidence:
+  1. *Handing focus back to the previously-frontmost app causes it.* No: with
+     `OMARCHY_PICKER_NO_HANDBACK=1` the excursion is identical (25–26 samples away out of
+     34, three runs each way).
+  2. *A nonactivating panel prevents it* (`.nonactivatingPanel` + `canBecomeMain: false` +
+     no `app.activate`). No: identical again, 25–26 samples. The mode still exists behind
+     `OMARCHY_PICKER_NONACTIVATING=1`. Note its probe reports `app.isActive=true` here,
+     which is not what that model is supposed to produce — unexplained.
+  3. *It happens at process exit, so a resident host would fix it.* No: with
+     `OMARCHY_PICKER_LINGER=6` the workspace moved at `orderOut` while the process stayed
+     alive for six more seconds. It is the window going away that moves you.
+  So the picker corrects it itself, synchronously, right after `orderOut` — that is why it
+  takes `--workspace`. Correcting in-process beats waiting for a detached interpreter to
+  start: the background picker's excursion is one 0.15 s sample. The theme picker's ~0.6 s
+  is the *apply* moving focus afterwards, not the picker.
 - **The overlay must appear before anything else happens.** The picker shows its window
   first and reads its rows afterwards, on a background queue. Reading them first cost about
   half a second of blank screen between the launcher starting the process and anything

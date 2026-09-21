@@ -218,6 +218,22 @@ def write_ghostty(name, c):
     GH_THEME.write_text("\n".join(lines) + "\n")
 
 
+def write_zed(name, c):
+    """Zed reads a theme file we own; it never reads our hand.
+
+    The generated theme is always called "Omarchy" and the user selects it once
+    in Zed's own settings. Every switch after that rewrites this file, which
+    Zed applies live -- so settings.json, which is the user's file and full of
+    their comments, is never touched by us at all."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import zed
+        zed.write(c)
+    except Exception:
+        # A theme switch must not fail because an editor is not set up.
+        pass
+
+
 def write_wezterm(name, c):
     def q(v): return f"'#{hex6(v)}'"
     ansi = [c.get("dark_background"), c.get("red"), c.get("green"), c.get("yellow"),
@@ -407,6 +423,7 @@ def apply(name):
     here = focused_workspace()
     c = load(name)
     write_sketchybar(name, c); write_ghostty(name, c); write_wezterm(name, c)
+    write_zed(name, c)
     set_appearance(c.get("mode", "dark"))
     STATE.mkdir(parents=True, exist_ok=True)
     (STATE / "current-theme").write_text(name + "\n")
@@ -575,8 +592,14 @@ if __name__ == "__main__":
         # OMARCHY_WORKSPACE from its parent, so the convenience of preferring
         # that value would have it compare the target against itself and always
         # decide there is nothing to do.
-        for delay in (0.0, 0.9, 1.6):
-            time.sleep(delay)
+        # Absolute offsets, not gaps: sleeping 0, 0.9 then 1.6 in a loop lands
+        # the third check at 2.5s, and anyone who deliberately changes workspace
+        # inside that window gets yanked back.
+        start = time.time()
+        for offset in (0.0, 0.9, 1.6):
+            remaining = offset - (time.time() - start)
+            if remaining > 0:
+                time.sleep(remaining)
             now = aerospace("list-workspaces", "--focused")
             if now and now != argv[1]:
                 aerospace("workspace", argv[1])

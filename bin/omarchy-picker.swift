@@ -37,6 +37,16 @@ func hexColor(_ raw: String, alpha: CGFloat = 1) -> NSColor {
                    alpha:   alpha)
 }
 
+/// Opaque mix of two colours; `weight` is the first colour's share.
+func blended(_ a: NSColor, toward b: NSColor, weight: CGFloat) -> NSColor {
+    let x = a.usingColorSpace(.sRGB) ?? a
+    let y = b.usingColorSpace(.sRGB) ?? b
+    return NSColor(srgbRed: x.redComponent * weight + y.redComponent * (1 - weight),
+                   green: x.greenComponent * weight + y.greenComponent * (1 - weight),
+                   blue: x.blueComponent * weight + y.blueComponent * (1 - weight),
+                   alpha: 1)
+}
+
 // ── Input ────────────────────────────────────────────────────────────────────
 
 struct Row {
@@ -54,7 +64,12 @@ struct Options {
     var chrome       = false     // compose a mock desktop over the wallpaper
     var hint         = ""
     var altKey: Character? = nil
+    var workspace = ""          // AeroSpace workspace to return to on dismissal
+    var menuBackend = ""        // path to menu.py -- presence selects list mode
+    var corpusBackend = ""      // same script, asked for everything searchable
+    var route = "root"          // which route the rows on stdin belong to
     var background   = "#101315"
+    var selection    = ""       // palette's selection colour; accent if unset
     var foreground   = "#cacccc"
     var accent       = "#798186"
     var darkBackground = "#0c0e10"
@@ -72,7 +87,12 @@ func parseArgs() -> Options {
         case "--chrome":     o.chrome = true
         case "--hint":       o.hint = next()
         case "--alt-key":    o.altKey = next().lowercased().first
+        case "--workspace":  o.workspace = next()
+        case "--menu":       o.menuBackend = next()
+        case "--corpus":     o.corpusBackend = next()
+        case "--route":      o.route = next()
         case "--background": o.background = next()
+        case "--selection":  o.selection = next()
         case "--foreground": o.foreground = next()
         case "--accent":     o.accent = next()
         case "--dark-background": o.darkBackground = next()
@@ -85,9 +105,7 @@ func parseArgs() -> Options {
 /// Reads stdin to EOF, which can only ever happen once -- call it twice and the
 /// second call returns nothing at all. It is called from exactly one place, on a
 /// background queue, after the window is already up.
-func readRows() -> [Row] {
-    let data = FileHandle.standardInput.readDataToEndOfFile()
-    let text = String(data: data, encoding: .utf8) ?? ""
+func parseRows(_ text: String) -> [Row] {
     return text.split(separator: "\n").compactMap { line in
         let f = line.components(separatedBy: "\t")
         guard let value = f.first, !value.isEmpty else { return nil }
@@ -335,6 +353,11 @@ final class CarouselView: NSView {
         loadNearby()
     }
     func updateFilter(_ text: String) {
+        // matches() indexes rows[], and rows arrive asynchronously now -- type
+        // during the window between launch and the first row and this walks off
+        // the end of an empty array. selectAdjacent and select are guarded;
+        // this was not.
+        guard !rows.isEmpty else { return }
         filter = text
         if !matches(selected), let first = (0..<rows.count).first(where: { matches($0) }) {
             selected = first
@@ -575,7 +598,513 @@ final class CarouselView: NSView {
     func cancel() { dismiss(printing: nil, code: 1) }
 }
 
+
+// ── Menu mode ────────────────────────────────────────────────────────────────
+//
+// The same overlay, rendering a filterable list instead of a carousel: our
+// stand-in for omarchy's `omarchy-menu`. Rows are NSTableView rather than the
+// hand-drawn layers the carousel uses -- a list needs selection, scrolling,
+// accessibility and text behaviour, all of which AppKit already has and none of
+// which is worth reimplementing for forty rows.
+
+struct MenuRow {
+    let id: String, icon: String, label: String, kind: String, aliases: String
+    // Optional trailing columns, used by the keybindings view: the chord shown
+    // right-aligned, the section it belongs to, and the raw command behind it.
+    let leading: String, group: String, detail: String
+    var isSubmenu: Bool { kind == "submenu" }
+    /// Reference rows exist to be read. Nothing runs them -- see menu.py, which
+    /// refuses the same ids on its side.
+    var isReference: Bool { kind == "reference" || kind == "disabled" }
+    func matches(_ q: String) -> Bool {
+        if q.isEmpty { return true }
+        let n = q.lowercased()
+        return label.lowercased().contains(n) || id.lowercased().contains(n)
+            || aliases.lowercased().contains(n) || leading.lowercased().contains(n)
+    }
+}
+
+func parseMenuRows(_ text: String) -> [MenuRow] {
+    text.split(separator: "\n").compactMap { line in
+        let f = line.components(separatedBy: "\t")
+        guard let id = f.first, !id.isEmpty else { return nil }
+        return MenuRow(id: id,
+                       icon:  f.count > 1 ? f[1] : "",
+                       label: f.count > 2 ? f[2] : id,
+                       kind:  f.count > 3 ? f[3] : "action",
+                       aliases: f.count > 4 ? f[4] : "",
+                       leading: f.count > 5 ? f[5] : "",
+                       group:   f.count > 6 ? f[6] : "",
+                       detail:  f.count > 7 ? f[7] : "")
+    }
+}
+
+/// Text input, routed the way AppKit expects: AppKit owns the field editor, and
+/// navigation is intercepted in the delegate rather than by reading keystrokes.
+/// Every branch checks `hasMarkedText()` first so an input method composing a
+/// character keeps Return and Escape for itself.
+final class MenuInput: NSObject, NSSearchFieldDelegate {
+    let field = NSSearchField(frame: .zero)
+    var filterChanged: (String) -> Void = { _ in }
+    var moveSelection: (Int) -> Void = { _ in }
+    var acceptSelection: () -> Void = {}
+    var escape: () -> Void = {}
+    var back: () -> Void = {}
+    var forward: () -> Void = {}
+
+    override init() {
+        super.init()
+        field.placeholderString = "Search"
+        field.delegate = self
+        field.sendsSearchStringImmediately = true
+        field.sendsWholeSearchString = false
+        field.focusRingType = .none
+        field.isBezeled = false
+        field.drawsBackground = false
+        // The bezel is what positions a search field's built-in magnifier and
+        // cancel button. Remove the bezel and they land on top of the text, so
+        // take them out and draw the glyph ourselves at a known offset.
+        if let cell = field.cell as? NSSearchFieldCell {
+            cell.searchButtonCell = nil
+            cell.cancelButtonCell = nil
+        }
+    }
+
+    func controlTextDidChange(_ notification: Notification) {
+        if let editor = field.currentEditor() as? NSTextView, editor.hasMarkedText() { return }
+        filterChanged(field.stringValue)
+    }
+
+    func control(_ control: NSControl, textView: NSTextView,
+                 doCommandBy commandSelector: Selector) -> Bool {
+        guard !textView.hasMarkedText() else { return false }
+        switch commandSelector {
+        case #selector(NSResponder.moveUp(_:)):       moveSelection(-1); return true
+        case #selector(NSResponder.moveDown(_:)):     moveSelection(1);  return true
+        case #selector(NSResponder.insertNewline(_:)): acceptSelection(); return true
+        case #selector(NSResponder.cancelOperation(_:)): escape();       return true
+        case #selector(NSResponder.deleteBackward(_:)):
+            if field.stringValue.isEmpty { back(); return true }
+            return false
+        // Left and right navigate, but only with an empty query -- while there
+        // is text they are cursor keys, and stealing them would make the field
+        // impossible to edit.
+        case #selector(NSResponder.moveRight(_:)):
+            if field.stringValue.isEmpty { forward(); return true }
+            return false
+        case #selector(NSResponder.moveLeft(_:)):
+            if field.stringValue.isEmpty { back(); return true }
+            return false
+        default: return false
+        }
+    }
+}
+
+/// A row that highlights in the current palette rather than the system accent.
+final class ThemedRowView: NSTableRowView {
+    var selectionColor: NSColor = .selectedContentBackgroundColor
+    var radius: CGFloat = 6
+
+    override func drawSelection(in dirtyRect: NSRect) {
+        guard isSelected else { return }
+        selectionColor.setFill()
+        NSBezierPath(roundedRect: bounds.insetBy(dx: 4, dy: 1),
+                     xRadius: radius, yRadius: radius).fill()
+    }
+}
+
+enum MenuLine {
+    case group(String)
+    case item(MenuRow)
+}
+
+final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
+    let opts: Options
+    let s: CGFloat
+    var rows: [MenuRow] = []
+    var shown: [MenuRow] = []
+    var lines: [MenuLine] = []
+    var route = "root"
+    /// Width of the chord column, measured over *every* row rather than the
+    /// filtered ones, so the labels do not shuffle sideways while typing.
+    var chordWidth: CGFloat = 0
+    /// Everything searchable, loaded once in the background. A query looks here
+    /// rather than at the current level: ⌘Space took the launcher's key, so
+    /// typing "theme" must find the theme picker from anywhere, and typing an
+    /// app name must find the app.
+    var corpus: [MenuRow] = []
+    var searchingEverything = false
+    var isReferenceView: Bool { rows.contains { !$0.leading.isEmpty } }
+    var stack: [(route: String, rows: [MenuRow], query: String)] = []
+
+    let input = MenuInput()
+    let table = NSTableView()
+    let scroll = NSScrollView()
+    let card = NSView()
+    let title = NSTextField(labelWithString: "")
+    let separator = NSView()
+    let searchIcon = NSTextField(labelWithString: "")
+    let hint = NSTextField(labelWithString: "")
+
+    init(opts: Options, frame: NSRect, scale: CGFloat) {
+        self.opts = opts
+        self.s = min(max(min(frame.width / 1512, frame.height / 982), 0.8), 1.6)
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.backgroundColor = hexColor(opts.background, alpha: 0.5).cgColor
+        build()
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    var cardW: CGFloat { isReferenceView ? 800 * s : 560 * s }
+    /// Chrome is title + field + separator above, hint below; the rest is rows,
+    /// capped so a long list scrolls instead of running off the screen.
+    func cardH(_ rowCount: Int) -> CGFloat {
+        let rowsH = CGFloat(max(1, rowCount)) * (34 * s + 2 * s)
+        return min(76 * s + rowsH + 54 * s, bounds.height * 0.75)
+    }
+
+    func layoutCard() {
+        // lines, not shown: a section heading is a row in the table too, so
+        // sizing from the item count alone leaves every heading's worth of
+        // results hanging below the scroll view where they cannot be seen.
+        let w = cardW, h = cardH(lines.count)
+        card.frame = NSRect(x: (bounds.width - w) / 2, y: (bounds.height - h) / 2,
+                            width: w, height: h)
+        title.frame = NSRect(x: 20 * s, y: h - 30 * s, width: w - 40 * s, height: 16 * s)
+        searchIcon.frame = NSRect(x: 16 * s, y: h - 63 * s, width: 22 * s, height: 20 * s)
+        input.field.frame = NSRect(x: 42 * s, y: h - 68 * s, width: w - 56 * s, height: 30 * s)
+        separator.frame = NSRect(x: 0, y: h - 76 * s, width: w, height: 1)
+        scroll.frame = NSRect(x: 8 * s, y: 40 * s, width: w - 16 * s, height: h - 120 * s)
+        hint.frame = NSRect(x: 0, y: 14 * s, width: w, height: 14 * s)
+    }
+
+    func build() {
+        let w = 560 * s, h = 460 * s
+        card.wantsLayer = true
+        card.layer?.backgroundColor = hexColor(opts.darkBackground, alpha: 0.98).cgColor
+        card.layer?.cornerRadius = 12 * s
+        card.layer?.borderWidth = 1 * s
+        card.layer?.borderColor = hexColor(opts.accent, alpha: 0.7).cgColor
+        card.frame = NSRect(x: (bounds.width - w) / 2, y: (bounds.height - h) / 2, width: w, height: h)
+        addSubview(card)
+
+        title.font = .systemFont(ofSize: 12 * s, weight: .semibold)
+        title.textColor = hexColor(opts.foreground, alpha: 0.45)
+        title.frame = NSRect(x: 20 * s, y: h - 30 * s, width: w - 40 * s, height: 16 * s)
+        card.addSubview(title)
+
+        searchIcon.stringValue = "􀊫"
+        searchIcon.font = .systemFont(ofSize: 15 * s)
+        searchIcon.textColor = hexColor(opts.foreground, alpha: 0.35)
+        card.addSubview(searchIcon)
+
+        input.field.font = .systemFont(ofSize: 19 * s)
+        input.field.textColor = hexColor(opts.foreground)
+        card.addSubview(input.field)
+
+        separator.frame = NSRect(x: 0, y: h - 76 * s, width: w, height: 1)
+        separator.wantsLayer = true
+        separator.layer?.backgroundColor = hexColor(opts.foreground, alpha: 0.12).cgColor
+        card.addSubview(separator)
+
+        table.headerView = nil
+        table.backgroundColor = .clear
+        table.rowHeight = 34 * s
+        table.intercellSpacing = NSSize(width: 0, height: 2 * s)
+        // Stays .regular. Setting .none does not mean "I will draw it myself" --
+        // it means the table stops drawing selection at all and never calls
+        // drawSelection, so the custom row view below is simply never asked.
+        // With .regular the override replaces the system paint, which is what
+        // we want: the palette's colour instead of the system grey.
+        table.selectionHighlightStyle = .regular
+        table.dataSource = self
+        table.delegate = self
+        table.addTableColumn(NSTableColumn(identifier: NSUserInterfaceItemIdentifier("row")))
+        scroll.documentView = table
+        scroll.hasVerticalScroller = true
+        scroll.drawsBackground = false
+        scroll.frame = NSRect(x: 8 * s, y: 40 * s, width: w - 16 * s, height: h - 120 * s)
+        card.addSubview(scroll)
+
+        hint.font = .systemFont(ofSize: 11 * s, weight: .medium)
+        hint.textColor = hexColor(opts.foreground, alpha: 0.4)
+        hint.alignment = .center
+        hint.frame = NSRect(x: 0, y: 14 * s, width: w, height: 14 * s)
+        hint.stringValue = "↑↓ move    → open    ← back    ⏎ select    esc close"
+        card.addSubview(hint)
+
+        input.filterChanged = { [weak self] q in self?.applyFilter(q) }
+        input.moveSelection = { [weak self] d in self?.move(d) }
+        input.acceptSelection = { [weak self] in self?.accept() }
+        input.escape = { [weak self] in self?.escapePressed() }
+        input.back = { [weak self] in self?.pop() }
+        input.forward = { [weak self] in self?.descend() }
+    }
+
+    func setRows(_ newRows: [MenuRow], route: String) {
+        self.rows = newRows
+        self.route = route
+        let font = NSFont.systemFont(ofSize: 13 * s, weight: .medium)
+        chordWidth = newRows.map {
+            $0.leading.isEmpty ? 0
+                : ($0.leading as NSString)
+                    .size(withAttributes: [.font: font]).width + 18 * s
+        }.max() ?? 0
+        title.stringValue = route == "root" ? "Omarchy  ⌘Space"
+                                            : route.replacingOccurrences(of: ".", with: " › ")
+        applyFilter(input.field.stringValue)
+    }
+
+    func applyFilter(_ q: String) {
+        searchingEverything = !q.isEmpty && !corpus.isEmpty
+        let source = searchingEverything ? corpus : rows
+        shown = source.filter { $0.matches(q) }
+        lines = []
+        var lastGroup = ""
+        for row in shown {
+            if !row.group.isEmpty && row.group != lastGroup {
+                lines.append(.group(row.group))
+                lastGroup = row.group
+            }
+            lines.append(.item(row))
+        }
+        layoutCard()
+        table.reloadData()
+        selectFirstItem()
+    }
+
+    func selectFirstItem() {
+        if let i = lines.firstIndex(where: { if case .item = $0 { return true }; return false }) {
+            table.selectRowIndexes([i], byExtendingSelection: false)
+            table.scrollRowToVisible(i)
+        }
+    }
+
+    func itemAt(_ index: Int) -> MenuRow? {
+        guard index >= 0, index < lines.count, case let .item(row) = lines[index] else { return nil }
+        return row
+    }
+
+    func move(_ delta: Int) {
+        guard !lines.isEmpty else { return }
+        // Step over section headings rather than landing on them.
+        var next = table.selectedRow + delta
+        while next >= 0, next < lines.count, itemAt(next) == nil { next += delta }
+        guard next >= 0, next < lines.count else { return }
+        table.selectRowIndexes([next], byExtendingSelection: false)
+        table.scrollRowToVisible(next)
+    }
+
+    /// Right arrow opens a submenu. On a row that runs something it does
+    /// nothing: "forward" into an action would just be Return by another name,
+    /// and an arrow key is a poor way to discover that you launched something.
+    func descend() {
+        guard let row = itemAt(table.selectedRow), row.isSubmenu else { return }
+        push(row.id)
+    }
+
+    func accept() {
+        guard let row = itemAt(table.selectedRow) else { return }
+        // A reference row is something to read, not something to run. Nothing
+        // is printed, so nothing downstream can execute it either.
+        if row.isReference { return }
+        if row.isSubmenu { push(row.id) } else { dismiss(printing: row.id, code: 0) }
+    }
+
+    /// Descend in place rather than exiting and relaunching. Every overlay that
+    /// closes costs a workspace excursion to correct (see CLAUDE.md), so a menu
+    /// three levels deep would pay it three times.
+    func push(_ newRoute: String) {
+        stack.append((route, rows, input.field.stringValue))
+        input.field.stringValue = ""
+        loadRoute(newRoute)
+    }
+
+    func pop() {
+        guard let previous = stack.popLast() else { return }
+        input.field.stringValue = previous.query
+        setRows(previous.rows, route: previous.route)
+    }
+
+    func escapePressed() {
+        if !input.field.stringValue.isEmpty {
+            input.field.stringValue = ""
+            applyFilter("")            // back to the level, out of global search
+        } else if !stack.isEmpty {
+            pop()
+        } else {
+            dismiss(printing: nil, code: 1)
+        }
+    }
+
+    func loadCorpus() {
+        let backend = opts.corpusBackend
+        guard !backend.isEmpty else { return }
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+            task.arguments = [backend, "corpus"]
+            let pipe = Pipe()
+            task.standardOutput = pipe
+            task.standardError = FileHandle.nullDevice
+            task.standardInput = FileHandle.nullDevice
+            do { try task.run() } catch { return }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            task.waitUntilExit()
+            guard task.terminationStatus == 0 else { return }
+            let parsed = parseMenuRows(String(data: data, encoding: .utf8) ?? "")
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.corpus = parsed
+                // A query typed while this was still loading searched only the
+                // current level; redo it now that there is more to search.
+                if !self.input.field.stringValue.isEmpty {
+                    self.applyFilter(self.input.field.stringValue)
+                }
+            }
+        }
+    }
+
+    func loadRoute(_ newRoute: String) {
+        let backend = opts.menuBackend
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let task = Process()
+            // /usr/bin/python3 explicitly: a GUI launch has no Homebrew on PATH,
+            // and menu.py is written to run under the 3.9 that ships with macOS.
+            task.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+            task.arguments = [backend, "rows", newRoute]
+            let pipe = Pipe()
+            task.standardOutput = pipe
+            task.standardInput = FileHandle.nullDevice
+            let errPipe = Pipe()
+            task.standardError = errPipe
+            do { try task.run() } catch {
+                DispatchQueue.main.async { self?.showBackendError("cannot run \(backend)") }
+                return
+            }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+            task.waitUntilExit()
+            // A backend that dies must not look like an empty submenu. Keep what
+            // is on screen and say so, rather than silently showing nothing.
+            guard task.terminationStatus == 0 else {
+                let message = String(data: errData, encoding: .utf8)?
+                    .split(separator: "\n").last.map(String.init) ?? "backend failed"
+                DispatchQueue.main.async { self?.showBackendError(message) }
+                return
+            }
+            let parsed = parseMenuRows(String(data: data, encoding: .utf8) ?? "")
+            DispatchQueue.main.async { self?.setRows(parsed, route: newRoute) }
+        }
+    }
+
+    func showBackendError(_ message: String) {
+        title.stringValue = "⚠︎  " + message
+        title.textColor = hexColor(opts.foreground, alpha: 0.9)
+    }
+
+    // MARK: table
+
+    func numberOfRows(in tableView: NSTableView) -> Int { lines.count }
+
+    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+        let view = ThemedRowView()
+        // The palette's selection colour is meant for exactly this; accent at
+        // low weight is the fallback for a palette that omits it.
+        // Blended opaquely toward the card, not drawn at low alpha. Alpha put
+        // the result at the mercy of whatever showed through and came out
+        // nearly invisible; a blend lands on a known colour. Painting
+        // `selection` solid is not an option either -- several palettes set it
+        // to a near white (ristretto's is #d0d0d0), which puts light text on a
+        // light bar.
+        // Most palettes set `selection` to a near-neutral dark grey, so honouring
+        // it literally gives every theme almost the same bar. The accent is the
+        // colour that actually distinguishes one theme from another, so the
+        // highlight is an accent tint on the card: everforest reads green,
+        // ristretto reads salmon, and the label stays readable on both.
+        let tint = opts.selection.isEmpty ? opts.accent : opts.selection
+        let base = blended(hexColor(opts.accent), toward: hexColor(tint), weight: 0.55)
+        view.selectionColor = blended(base, toward: hexColor(opts.darkBackground),
+                                      weight: 0.38)
+        view.radius = 6 * s
+        return view
+    }
+
+    func tableView(_ tableView: NSTableView, isGroupRow row: Int) -> Bool {
+        itemAt(row) == nil
+    }
+
+    func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
+        itemAt(row) != nil
+    }
+
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?,
+                   row: Int) -> NSView? {
+        guard let item = itemAt(row) else {
+            guard case let .group(name) = lines[row] else { return nil }
+            let header = NSTableCellView()
+            let text = NSTextField(labelWithString: name)
+            text.font = .systemFont(ofSize: 11 * s, weight: .semibold)
+            text.textColor = hexColor(opts.accent, alpha: 0.9)
+            text.frame = NSRect(x: 12 * s, y: 8 * s, width: cardW - 40 * s, height: 16 * s)
+            header.addSubview(text)
+            return header
+        }
+        let cell = NSTableCellView()
+        // Nerd Font on the icon only: a missing glyph must not take the label
+        // down with it.
+        let icon = NSTextField(labelWithString: item.icon)
+        icon.font = NSFont(name: "Hack Nerd Font", size: 15 * s) ?? .systemFont(ofSize: 15 * s)
+        icon.textColor = hexColor(opts.accent)
+        icon.frame = NSRect(x: 12 * s, y: 7 * s, width: 24 * s, height: 20 * s)
+        cell.addSubview(icon)
+
+        let labelX = item.leading.isEmpty ? 42 * s : 12 * s + chordWidth
+        let label = NSTextField(labelWithString: item.label)
+        label.font = .systemFont(ofSize: 14 * s)
+        // A disabled row is still listed -- it answers "why did that shortcut
+        // stop working?" -- but it reads as inactive.
+        label.textColor = hexColor(opts.foreground, alpha: item.kind == "disabled" ? 0.45 : 1)
+        label.lineBreakMode = .byTruncatingTail
+        label.frame = NSRect(x: labelX, y: 7 * s,
+                             width: cardW - labelX - 40 * s, height: 20 * s)
+        cell.addSubview(label)
+
+        if !item.leading.isEmpty {
+            let chord = NSTextField(labelWithString: item.leading)
+            chord.font = .systemFont(ofSize: 13 * s, weight: .medium)
+            chord.textColor = hexColor(opts.accent)
+            chord.alignment = .right
+            chord.frame = NSRect(x: 12 * s, y: 7 * s, width: chordWidth - 12 * s, height: 20 * s)
+            cell.addSubview(chord)
+        }
+
+        if item.isSubmenu {
+            let chevron = NSTextField(labelWithString: "›")
+            chevron.font = .systemFont(ofSize: 15 * s, weight: .medium)
+            chevron.textColor = hexColor(opts.foreground, alpha: 0.35)
+            chevron.alignment = .right
+            chevron.frame = NSRect(x: scroll.frame.width - 34 * s, y: 7 * s,
+                                   width: 20 * s, height: 20 * s)
+            cell.addSubview(chevron)
+        }
+        return cell
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        // Outside the card closes, as the carousel's scrim does.
+        let point = convert(event.locationInWindow, from: nil)
+        if !card.frame.contains(point) { dismiss(printing: nil, code: 1) }
+    }
+}
+
 // ── Window ───────────────────────────────────────────────────────────────────
+
+/// True once dismissal has begun. Delayed callbacks -- the activation retry,
+/// the debug probes -- must not resurrect a panel during the 80ms it spends
+/// handing focus back before the process exits.
+var isFinishing = false
 
 /// Put the keyboard back where it was.
 ///
@@ -583,13 +1112,47 @@ final class CarouselView: NSView {
 /// quit, and under AeroSpace that choice drags you to whichever workspace that
 /// app's window lives on -- you ask for a theme and land on workspace 1.
 func dismiss(printing value: String?, code: Int32) {
+    isFinishing = true
     panel.orderOut(nil)
-    if let prev = previousApp, prev.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+
+    // Measured: the workspace excursion happens the moment the window is
+    // ordered out, not when the process exits (a picker held open for six
+    // seconds after orderOut had already been moved). So it cannot be avoided
+    // at the window level -- only corrected, and the correction is worth doing
+    // here rather than waiting on a detached interpreter to start.
+    if !opts.workspace.isEmpty {
+        for path in ["/opt/homebrew/bin/aerospace", "/usr/local/bin/aerospace"]
+        where FileManager.default.isExecutableFile(atPath: path) {
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: path)
+            task.arguments = ["workspace", opts.workspace]
+            task.standardInput = FileHandle.nullDevice
+            task.standardOutput = FileHandle.nullDevice
+            task.standardError = FileHandle.nullDevice
+            try? task.run()
+            task.waitUntilExit()
+            break
+        }
+    }
+    // OMARCHY_PICKER_NO_HANDBACK=1 skips this. On a workspace with no windows
+    // of its own the previously-frontmost app is, by definition, one whose
+    // windows are elsewhere -- so handing focus back may be *requesting* the
+    // very excursion the restore helper then spends seconds undoing.
+    if !nonactivating,
+       ProcessInfo.processInfo.environment["OMARCHY_PICKER_NO_HANDBACK"] != "1",
+       let prev = previousApp,
+       prev.processIdentifier != ProcessInfo.processInfo.processIdentifier {
         prev.activate(options: [])
     }
     if let value { print(value) }
-    // Let the activation request land before this process disappears.
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { exit(code) }
+    // OMARCHY_PICKER_LINGER=<seconds> holds the process open after the window
+    // is gone. It answers one question: does the workspace excursion happen
+    // when the window is ordered out, or when the process exits? If only at
+    // exit, no amount of window-level fiddling helps and the answer is a
+    // resident host -- which is what upstream has, since omarchy-shell is a
+    // long-lived process whose menu is a plugin that shows and hides.
+    let linger = Double(ProcessInfo.processInfo.environment["OMARCHY_PICKER_LINGER"] ?? "") ?? 0.08
+    DispatchQueue.main.asyncAfter(deadline: .now() + linger) { exit(code) }
 }
 
 // A borderless NSPanel: AeroSpace only tiles windows whose accessibility
@@ -597,10 +1160,38 @@ func dismiss(printing value: String?, code: Int32) {
 // window rule for a binary that has no bundle id to match on.
 final class PickerPanel: NSPanel {
     override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
+    // Main is what an *active application* has. A panel that never activates
+    // its app must not claim it.
+    override var canBecomeMain: Bool { !nonactivating }
+
+    /// A hand-built process has no Edit menu, so ⌘A/C/X/V/Z reach nothing.
+    /// Route them through the responder chain to the field editor by hand.
+    /// Deliberately narrow: Return, Escape and ordinary characters are never
+    /// touched here -- the input context must see those first.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let mods = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        guard let editor = firstResponder as? NSTextView, editor.isFieldEditor,
+              mods == [.command] || mods == [.command, .shift],
+              let key = event.charactersIgnoringModifiers?.lowercased()
+        else { return super.performKeyEquivalent(with: event) }
+
+        let action: String? = mods == [.command, .shift]
+            ? (key == "z" ? "redo:" : nil)
+            : ["a": "selectAll:", "c": "copy:", "x": "cut:", "v": "paste:", "z": "undo:"][key]
+        if let action, NSApp.sendAction(NSSelectorFromString(action), to: nil, from: self) {
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
 }
 
 let opts = parseArgs()
+
+// OMARCHY_PICKER_NONACTIVATING=1 selects the other focus model: a panel that
+// takes the keyboard without its application ever becoming active. The success
+// state then reads app.isActive=false with panel.isKeyWindow=true, which looks
+// like failure and is not.
+let nonactivating = ProcessInfo.processInfo.environment["OMARCHY_PICKER_NONACTIVATING"] == "1"
 
 // Captured before activating, while the answer is still someone else.
 let previousApp = NSWorkspace.shared.frontmostApplication
@@ -615,8 +1206,11 @@ let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.fr
 // app, so the panel never becomes key and every arrow key goes to whatever was
 // in front. Verified -- with it set, System Events still reported the terminal
 // as frontmost with the picker covering the screen.
-let panel = PickerPanel(contentRect: screen.frame, styleMask: [.borderless],
+let panel = PickerPanel(contentRect: screen.frame,
+                        styleMask: nonactivating ? [.borderless, .nonactivatingPanel]
+                                                 : [.borderless],
                         backing: .buffered, defer: false, screen: screen)
+panel.becomesKeyOnlyIfNeeded = false
 panel.level = .screenSaver
 panel.isOpaque = false
 panel.backgroundColor = .clear
@@ -625,15 +1219,30 @@ panel.hidesOnDeactivate = false
 panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
 panel.setFrame(screen.frame, display: true)
 
-let view = CarouselView(opts: opts, frame: NSRect(origin: .zero, size: screen.frame.size),
-                        scale: screen.backingScaleFactor)
+let isMenu = !opts.menuBackend.isEmpty
+let carousel = isMenu ? nil : CarouselView(opts: opts,
+                                           frame: NSRect(origin: .zero, size: screen.frame.size),
+                                           scale: screen.backingScaleFactor)
+let menu = isMenu ? MenuView(opts: opts, frame: NSRect(origin: .zero, size: screen.frame.size),
+                             scale: screen.backingScaleFactor) : nil
+let view: NSView = carousel ?? menu!
 panel.contentView = view
 
 panel.orderFrontRegardless()
-app.activate(ignoringOtherApps: true)
+// Asking to activate while wearing a nonactivating style mask is a
+// contradiction -- it is the likeliest reason this model was written off here
+// the first time.
+if !nonactivating { app.activate(ignoringOtherApps: true) }
 panel.makeKeyAndOrderFront(nil)
-panel.makeFirstResponder(view)
-view.layout(animated: false)
+// The field editor is substituted by AppKit once the panel is key and the
+// field is in the hierarchy -- in that order.
+if let menu {
+    panel.initialFirstResponder = menu.input.field
+    panel.makeFirstResponder(menu.input.field)
+} else {
+    panel.makeFirstResponder(view)
+}
+carousel?.layout(animated: false)
 
 // Read the rows only once the overlay is already up and holding the keyboard.
 //
@@ -643,10 +1252,21 @@ view.layout(animated: false)
 // app happens to own a window elsewhere, and the workspace goes with it. An
 // overlay that is already key has nowhere for focus to fall.
 DispatchQueue.global(qos: .userInitiated).async {
-    let rows = readRows()
+    let text = String(data: FileHandle.standardInput.readDataToEndOfFile(), encoding: .utf8) ?? ""
     DispatchQueue.main.async {
-        if rows.isEmpty { exit(1) }
-        view.setRows(rows)
+        if let menu {
+            let parsed = parseMenuRows(text)
+            if parsed.isEmpty { exit(1) }
+            // The rows on stdin belong to whichever route the caller asked for
+            // -- labelling them "root" put the wrong heading on a submenu
+            // opened directly, and told Escape it had nowhere to go back to.
+            menu.setRows(parsed, route: opts.route)
+            menu.loadCorpus()
+        } else {
+            let parsed = parseRows(text)
+            if parsed.isEmpty { exit(1) }
+            carousel!.setRows(parsed)
+        }
     }
 }
 
@@ -654,17 +1274,20 @@ DispatchQueue.global(qos: .userInitiated).async {
 // app is still settling -- a full-screen overlay that eats keystrokes without
 // responding to them is the worst possible failure, so ask twice.
 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-    guard !panel.isKeyWindow else { return }
+    guard !isFinishing, !nonactivating, !panel.isKeyWindow else { return }
     app.activate(ignoringOtherApps: true)
     panel.makeKeyAndOrderFront(nil)
-    panel.makeFirstResponder(view)
+    panel.makeFirstResponder(menu?.input.field ?? view)
 }
 
 // OMARCHY_PICKER_DEBUG_SELECT=1: apply the highlighted row unattended. Picking
 // is the one path that cannot be screenshotted or driven without typing into
 // someone's live session, and it is the path that moves focus.
 if ProcessInfo.processInfo.environment["OMARCHY_PICKER_DEBUG_SELECT"] == "1" {
-    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { view.finish(exitCode: 0) }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+        guard !isFinishing else { return }
+        if let menu { menu.accept() } else { carousel?.finish(exitCode: 0) }
+    }
 }
 
 // OMARCHY_PICKER_DEBUG=1: say whether the overlay actually holds the keyboard.

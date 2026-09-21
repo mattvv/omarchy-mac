@@ -23,12 +23,15 @@ window-padding-x = 14
 window-padding-y = 14
 window-padding-balance = true
 macos-titlebar-style = hidden
-# `hidden` drops the titlebar but keeps the window frame, which reads as a grey
-# outline around every Ghostty window while WezTerm -- which sets
-# window_decorations = 'RESIZE' -- has none. `none` removes the frame too, so
-# the two terminals look like each other and like Omarchy, where nothing wears
-# a border but the one JankyBorders draws.
-window-decoration = none
+# `hidden` drops the titlebar but keeps the window frame, which on its own reads
+# as a grey outline. `none` removed that frame -- and the window's rounded
+# corners with it, because on macOS a borderless window is a square one. That
+# was invisible while every theme was square, and wrong the moment solitude
+# asked for round: the border traced an arc that the square window then drew
+# straight over, so the screen ran into the corner. Keep the frame. The border
+# JankyBorders draws covers the grey outline either way -- square themes inset
+# it over the frame, rounded themes follow it.
+window-decoration = auto
 background-opacity = 0.9
 confirm-close-surface = false
 resize-overlay = never

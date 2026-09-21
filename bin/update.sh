@@ -35,6 +35,9 @@ case "${1:-status}" in
     r=$(repo); name="${2:-}"
     case "$name" in
       aerospace)  sed "s|__HOME__|$HOME|g" "$r/config/aerospace.toml" > "$HOME/.aerospace.toml"
+                  # Regenerating drops the fork-only keys; put them back before
+                  # reloading, or the scrolling peek quietly disappears.
+                  "$r/bin/aerospace_fork_config.sh" >/dev/null 2>&1 || true
                   aerospace reload-config </dev/null >/dev/null 2>&1 ;;
       ghostty)    cp "$r/config/ghostty/config" "$HOME/.config/ghostty/config" ;;
       wezterm)    cp "$r/config/wezterm.lua" "$HOME/.wezterm.lua" ;;

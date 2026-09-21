@@ -26,6 +26,9 @@ done
 say "Installing config (substituting \$HOME)"
 mkdir -p "$HOME/.config/ghostty" "$HOME/.config/sketchybar/plugins-omarchy"
 sed "s|__HOME__|$HOME|g" "$REPO/config/aerospace.toml" > "$HOME/.aerospace.toml"
+# The template cannot hold fork-only keys -- stock AeroSpace rejects unknown
+# keys outright -- so they are re-applied here, after the file is written.
+"$REPO/bin/aerospace_fork_config.sh" >/dev/null 2>&1 || true
 cp "$REPO/config/wezterm.lua"              "$HOME/.wezterm.lua"
 cp "$REPO/config/ghostty/config"           "$HOME/.config/ghostty/config"
 cp "$REPO/config/sketchybar/sketchybarrc"  "$HOME/.config/sketchybar/sketchybarrc"

@@ -77,33 +77,10 @@ cp -R "$APP" /Applications/AeroSpace.app
 CLI_DEST="$(command -v aerospace || echo /opt/homebrew/bin/aerospace)"
 rm -f "$CLI_DEST"; cp "$CLI" "$CLI_DEST"; chmod +x "$CLI_DEST"
 
-# Fork-only config. Stock AeroSpace REJECTS these (unknown key / unknown
-# command), so they are added only once the fork is installed.
-CFG="$HOME/.aerospace.toml"
-if ! grep -q "scrolling-peek-width" "$CFG" 2>/dev/null; then
-  say "Adding fork-only config to $CFG"
-  python3 - "$CFG" "$PEEK" <<'PY'
-import sys, re
-cfg, peek = sys.argv[1], sys.argv[2]
-s = open(cfg).read()
-if "scrolling-peek-width" not in s:
-    s = s.replace("[key-mapping]", f"""# --- AeroSpace scrolling fork only ---
-# Points of the NEXT page kept visible at the right edge in the scrolling
-# layout. Auto-suppressed when a monitor sits to the right (a window manager
-# cannot clip windows). Remove this if you revert to stock AeroSpace.
-scrolling-peek-width = {peek}
-
-[key-mapping]""", 1)
-if "'scroll left'" not in s:
-    s = s.replace("    # Modes", """    # Scrolling layout viewport (fork only). Arrows keep their directional
-    # `focus` meaning; ctrl moves the viewport a page.
-    alt-ctrl-left  = 'scroll left'
-    alt-ctrl-right = 'scroll right'
-
-    # Modes""", 1)
-open(cfg, "w").write(s)
-PY
-fi
+# Fork-only config lives in its own script, because every path that regenerates
+# ~/.aerospace.toml has to re-apply it -- install.sh and `update.sh config
+# aerospace` both call the same one.
+"$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/aerospace_fork_config.sh" || true
 
 say "Launching"
 open -a /Applications/AeroSpace.app

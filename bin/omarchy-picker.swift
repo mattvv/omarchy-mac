@@ -650,6 +650,7 @@ final class MenuInput: NSObject, NSSearchFieldDelegate {
     var acceptSelection: () -> Void = {}
     var escape: () -> Void = {}
     var back: () -> Void = {}
+    var forward: () -> Void = {}
 
     override init() {
         super.init()
@@ -683,8 +684,15 @@ final class MenuInput: NSObject, NSSearchFieldDelegate {
         case #selector(NSResponder.insertNewline(_:)): acceptSelection(); return true
         case #selector(NSResponder.cancelOperation(_:)): escape();       return true
         case #selector(NSResponder.deleteBackward(_:)):
-            // Empty backspace goes up a level. Left/Right stay with the editor:
-            // making Left mean "parent" would break editing a query.
+            if field.stringValue.isEmpty { back(); return true }
+            return false
+        // Left and right navigate, but only with an empty query -- while there
+        // is text they are cursor keys, and stealing them would make the field
+        // impossible to edit.
+        case #selector(NSResponder.moveRight(_:)):
+            if field.stringValue.isEmpty { forward(); return true }
+            return false
+        case #selector(NSResponder.moveLeft(_:)):
             if field.stringValue.isEmpty { back(); return true }
             return false
         default: return false
@@ -823,7 +831,7 @@ final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         hint.textColor = hexColor(opts.foreground, alpha: 0.4)
         hint.alignment = .center
         hint.frame = NSRect(x: 0, y: 14 * s, width: w, height: 14 * s)
-        hint.stringValue = "↑↓ move    ⏎ select    ⌫ back    esc close"
+        hint.stringValue = "↑↓ move    → open    ← back    ⏎ select    esc close"
         card.addSubview(hint)
 
         input.filterChanged = { [weak self] q in self?.applyFilter(q) }
@@ -831,6 +839,7 @@ final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         input.acceptSelection = { [weak self] in self?.accept() }
         input.escape = { [weak self] in self?.escapePressed() }
         input.back = { [weak self] in self?.pop() }
+        input.forward = { [weak self] in self?.descend() }
     }
 
     func setRows(_ newRows: [MenuRow], route: String) {
@@ -885,6 +894,14 @@ final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         guard next >= 0, next < lines.count else { return }
         table.selectRowIndexes([next], byExtendingSelection: false)
         table.scrollRowToVisible(next)
+    }
+
+    /// Right arrow opens a submenu. On a row that runs something it does
+    /// nothing: "forward" into an action would just be Return by another name,
+    /// and an arrow key is a poor way to discover that you launched something.
+    func descend() {
+        guard let row = itemAt(table.selectedRow), row.isSubmenu else { return }
+        push(row.id)
     }
 
     func accept() {

@@ -84,6 +84,42 @@ else
   ok "sketchybar absent, dispatch test skipped"
 fi
 
+echo "zed theme"
+# Every palette must produce a theme whose every key exists in Zed's schema.
+# One key (scrollbar_thumb.background) is spelled with an underscore while all
+# its siblings use dots; emitting the pattern instead of the schema gives a
+# silently default scrollbar, which is invisible until someone looks for it.
+zed_bad=$(python3 - <<'PYEOF'
+import sys, json, re, glob, os
+sys.path.insert(0, "bin")
+import zed
+schema_path = "script/zed-schema.json"
+if not os.path.exists(schema_path):
+    print("SKIP no schema copy"); raise SystemExit
+schema = json.load(open(schema_path))
+defs = schema.get("definitions") or schema.get("$defs") or {}
+props = set(defs.get("ThemeStyleContent", {}).get("properties", {}))
+def load(path):
+    out = {}
+    for line in open(path):
+        m = re.match(r'\s*([A-Za-z_]+)\s*=\s*"(.*)"\s*$', line)
+        if m: out[m.group(1)] = m.group(2)
+    return out
+bad = []
+for path in sorted(glob.glob("themes/*.toml")):
+    style = zed.build(load(path))["themes"][0]["style"]
+    for key in style:
+        if key not in props:
+            bad.append(os.path.basename(path) + ":" + key)
+print(" ".join(sorted(set(bad))))
+PYEOF
+)
+case "$zed_bad" in
+  "")          ok "every palette generates schema-valid Zed keys" ;;
+  SKIP*)       ok "zed schema check skipped (no local schema copy)" ;;
+  *)           bad "zed keys not in schema: $zed_bad" ;;
+esac
+
 echo "icons"
 # An icon the font has no glyph for renders as nothing or as a tofu box, and the
 # menu looks broken without anything raising an error. Read the cmap and check.

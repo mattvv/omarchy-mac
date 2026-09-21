@@ -234,6 +234,34 @@ a switch regenerates three files that the configs *include*:
 | `~/.config/sketchybar/theme.sh` | `sketchybarrc` and every plugin, via `source` |
 | `~/.config/ghostty/theme.conf` | `config-file = ?"…"` |
 | `~/.config/wezterm-theme.lua` | `dofile`, applied *after* the bar plugin |
+| `~/.config/zed/themes/omarchy.json` | Zed, once you select the **Omarchy** theme |
+
+### Zed
+
+A theme switch regenerates a full Zed theme — 130 style keys derived from the palette's
+22 colours, every one checked against Zed's own schema by the test suite.
+
+Zed is the awkward case, because a theme is *selected* in `settings.json`, which is your
+file with your comments in it. So the generated theme always carries one name, **Omarchy**.
+Select it once (`⌘K ⌘T`, or set `"theme": "Omarchy"`); after that every switch only
+rewrites the theme file, which Zed applies **live, with no restart**. We never touch your
+settings again.
+
+Three things about Zed's theme loading, each established by testing rather than docs:
+
+- **The themes registry does not recurse.** A theme at `themes/<dir>/theme.json` is never
+  read — Zed logs `Is a directory (os error 21)`. It has to be a flat file.
+- **A *new* theme file is only discovered at startup.** Rewriting one Zed already knows
+  applies immediately; adding one does not.
+- **No style key is required.** Zed's schema marks all 131 optional and fills the rest from
+  its default theme, so a partial theme renders rather than being rejected.
+
+Colours are pre-blended and opaque. Zed accepts alpha, but then the result depends on what
+is painted underneath — and with `background.appearance: blurred` that is not hypothetical.
+Text colours are nudged toward black or white only as far as WCAG 4.5:1 requires: several
+palettes have a `muted` that is fine for a bar and unreadable as a comment. The ANSI
+colours are left exactly as the palette states them — those are a contract with terminal
+programs, and a "corrected" red is no longer red.
 
 A switch also sets **macOS light/dark appearance** from the theme's `mode`. This matters
 more than the config files: browsers, Finder and native apps follow the system appearance,

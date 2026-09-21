@@ -117,7 +117,7 @@ open -a AeroSpace 2>/dev/null || true
 
 cat <<'DONE'
 
-Installed. Four things still need YOUR hands (macOS will not let a script do them):
+Installed. A few things still need YOUR hands (macOS will not let a script do them):
 
   1. System Settings -> Privacy & Security -> Accessibility
        enable AeroSpace   (window management)
@@ -126,7 +126,9 @@ Installed. Four things still need YOUR hands (macOS will not let a script do the
   3. Raycast -> Settings -> Extensions -> + -> Add Script Directory ->
        ~/.local/share/omarchy-mac/raycast
        (puts "Omarchy Theme", "Omarchy Background" and the pickers on Cmd+Space)
-  4. Log out / back in if Spotlight still owns Cmd+Space
+  4. Zed (optional): open the theme picker and choose "Omarchy" once. After that,
+       every theme switch repaints Zed live and your settings.json is never touched.
+  5. Log out / back in if Spotlight still owns Cmd+Space
 
 Your previous config was backed up. See the path printed above.
 

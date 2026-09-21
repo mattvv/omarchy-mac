@@ -732,7 +732,10 @@ final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     }
 
     func layoutCard() {
-        let w = cardW, h = cardH(shown.count)
+        // lines, not shown: a section heading is a row in the table too, so
+        // sizing from the item count alone leaves every heading's worth of
+        // results hanging below the scroll view where they cannot be seen.
+        let w = cardW, h = cardH(lines.count)
         card.frame = NSRect(x: (bounds.width - w) / 2, y: (bounds.height - h) / 2,
                             width: w, height: h)
         title.frame = NSRect(x: 20 * s, y: h - 30 * s, width: w - 40 * s, height: 16 * s)

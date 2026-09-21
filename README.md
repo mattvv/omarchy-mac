@@ -1,26 +1,78 @@
 # omarchy-mac
 
-An [Omarchy](https://github.com/omacom/omarchy)-flavoured macOS desktop: tiling window
-management, a bar with working panels, and the **Solitude** theme across terminal, bar and
-window borders.
+**[Omarchy](https://github.com/omacom/omarchy) on a Mac, natively.** DHH's Arch + Hyprland
+setup — its tiling, its bar, its menu, its themes — rebuilt from the pieces macOS actually
+has, rather than emulated on top of it.
 
-Omarchy is DHH's Arch Linux + Hyprland setup. This is not a port of it — macOS cannot run
-Hyprland. It reproduces the *feel* using native Mac equivalents, staying faithful to
-Omarchy's actual config where the platform allows and documenting where it doesn't.
+![The desktop](docs/images/desktop.jpg)
 
-![theme](https://img.shields.io/badge/theme-Solitude-798186) ![platform](https://img.shields.io/badge/platform-Apple%20Silicon-101315)
+This is not a port, and does not try to be. macOS cannot run Hyprland, Quickshell or
+walker, and pretending otherwise gets you a worse Mac *and* a worse Omarchy. So every part
+here is one of three things: a native equivalent, a faithful rebuild, or missing and
+documented as missing. What carries over is the *feel* — the same keys under your fingers,
+the same menu, the same twenty-two themes repainting everything at once.
+
+![platform](https://img.shields.io/badge/platform-Apple%20Silicon-101315)
+![themes](https://img.shields.io/badge/themes-22-798186)
+![deps](https://img.shields.io/badge/runtime%20deps-none-4b4e55)
+
+## A look at it
+
+**⌘Space — the menu.** Omarchy keeps system actions in `omarchy-menu`, not in its launcher.
+So does this. Typing searches the whole tree *and* every installed app, because ⌘Space is
+where your hand already goes.
+
+![The menu](docs/images/menu.jpg)
+
+**Theme picker.** The same carousel Omarchy uses, rebuilt in AppKit: one expanded preview,
+the rest as skewed slices either side. Each card is a small mock desktop drawn from that
+theme's own palette, so you see the theme rather than its name.
+
+![Theme picker](docs/images/theme.jpg)
+
+**Background picker.** Every theme's wallpapers, and each theme remembers the one you left
+it on.
+
+![Background picker](docs/images/bg.jpg)
+
+**Twenty-two themes, one keystroke.** A switch repaints the bar, both terminals, the window
+borders, Zed and the wallpaper together, and flips macOS between light and dark to match —
+otherwise half the desktop stays on the old palette.
+
+| | |
+|---|---|
+| **Ristretto** ![ristretto](docs/images/themes/ristretto.jpg) | **Tokyo Night** ![tokyo-night](docs/images/themes/tokyo-night.jpg) |
+| **Everforest** ![everforest](docs/images/themes/everforest.jpg) | **Gruvbox** ![gruvbox](docs/images/themes/gruvbox.jpg) |
+| **Catppuccin Latte** ![catppuccin-latte](docs/images/themes/catppuccin-latte.jpg) | …and eighteen more, all vendored from upstream |
+
+**Scrolling and tabs.** With the optional AeroSpace fork, windows live in a scrollable row
+of fixed-width columns, or stack into real tabs — Omarchy's layouts, not an approximation.
+
+| scrolling | tabs |
+|---|---|
+| ![scrolling](docs/images/scroll.jpg) | ![tabs](docs/images/tabs.jpg) |
+
+Stock AeroSpace tiles instead, which is what you get without the fork:
+
+![tiles](docs/images/tiles.jpg)
 
 ## What it gives you
 
 | Omarchy | Here |
 |---|---|
-| Hyprland | [AeroSpace](https://github.com/nikitabobko/AeroSpace) |
-| Omarchy shell bar | [SketchyBar](https://github.com/FelixKratz/SketchyBar) |
+| Hyprland | [AeroSpace](https://github.com/nikitabobko/AeroSpace), plus an optional fork for real scrolling and tabs |
+| Omarchy shell bar | [SketchyBar](https://github.com/FelixKratz/SketchyBar) with working panels |
 | Hyprland borders | [JankyBorders](https://github.com/FelixKratz/JankyBorders) |
-| walker launcher | Raycast on `Cmd+Space` |
+| `omarchy-menu` | rebuilt in AppKit — `⌘Space` or `⌥O` |
+| walker launcher | the same menu: it searches every installed app too |
 | omarchy's image picker | the same carousel, rebuilt in AppKit |
-| Alacritty/Ghostty | Ghostty (WezTerm config included too) |
-| Solitude theme | same palette, everywhere |
+| `omarchy-menu-keybindings` | `⌥K`, read from your own `~/.aerospace.toml` |
+| Alacritty / Ghostty | Ghostty (a WezTerm config is included too) |
+| 22 themes | the same palettes, across bar, both terminals and Zed |
+| `omarchy-theme-bg-next` | per-theme backgrounds, each theme remembering its own |
+
+Everything is shell, Python and one 1000-line Swift file. There is no runtime dependency
+beyond what Homebrew installs, and nothing here needs a package manager of its own.
 
 ## Install
 

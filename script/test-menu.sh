@@ -129,7 +129,7 @@ sys.path.insert(0, 'script')
 from fontcheck import supported
 spec = importlib.util.spec_from_file_location('m','bin/menu.py')
 m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-font = os.path.expanduser('~/Library/Fonts/HackNerdFont-Regular.ttf')
+font = os.path.expanduser('~/Library/Fonts/JetBrainsMonoNerdFontMono-Regular.ttf')
 have = supported(font)
 bad = []
 for k, v in m.load().items():
@@ -139,7 +139,7 @@ for k, v in m.load().items():
     elif ord(icon[0]) not in have:
         bad.append('%s:U+%04X' % (k, ord(icon[0])))
 print(' '.join(bad))")
-[ -z "$missing" ] && ok "every icon has a glyph in Hack Nerd Font" || bad "icons without glyphs: $missing"
+[ -z "$missing" ] && ok "every icon has a glyph in the terminal font" || bad "icons without glyphs: $missing"
 
 echo
 [ "$fail" -eq 0 ] && echo "all passed" || echo "$fail failed"

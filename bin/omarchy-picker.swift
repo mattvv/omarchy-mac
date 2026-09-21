@@ -68,6 +68,7 @@ struct Options {
     var menuBackend = ""        // path to menu.py -- presence selects list mode
     var corpusBackend = ""      // same script, asked for everything searchable
     var route = "root"          // which route the rows on stdin belong to
+    var radius: CGFloat = 0     // theme's corner rounding; 0 is square
     var background   = "#101315"
     var selection    = ""       // palette's selection colour; accent if unset
     var foreground   = "#cacccc"
@@ -91,6 +92,7 @@ func parseArgs() -> Options {
         case "--menu":       o.menuBackend = next()
         case "--corpus":     o.corpusBackend = next()
         case "--route":      o.route = next()
+        case "--radius":     o.radius = CGFloat(Double(next()) ?? 0)
         case "--background": o.background = next()
         case "--selection":  o.selection = next()
         case "--foreground": o.foreground = next()
@@ -783,7 +785,11 @@ final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         let w = 560 * s, h = 460 * s
         card.wantsLayer = true
         card.layer?.backgroundColor = hexColor(opts.darkBackground, alpha: 0.98).cgColor
-        card.layer?.cornerRadius = 12 * s
+        // Most Omarchy themes are square -- upstream's default rounding is 0 and
+        // only solitude overrides it. Following that rather than rounding
+        // everything is the difference between wearing the theme and
+        // approximating it.
+        card.layer?.cornerRadius = opts.radius * 2 * s
         card.layer?.borderWidth = 1 * s
         card.layer?.borderColor = hexColor(opts.accent, alpha: 0.7).cgColor
         card.frame = NSRect(x: (bounds.width - w) / 2, y: (bounds.height - h) / 2, width: w, height: h)
@@ -1027,7 +1033,7 @@ final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         let base = blended(hexColor(opts.accent), toward: hexColor(tint), weight: 0.55)
         view.selectionColor = blended(base, toward: hexColor(opts.darkBackground),
                                       weight: 0.38)
-        view.radius = 6 * s
+        view.radius = opts.radius * s
         return view
     }
 
@@ -1055,7 +1061,7 @@ final class MenuView: NSView, NSTableViewDataSource, NSTableViewDelegate {
         // Nerd Font on the icon only: a missing glyph must not take the label
         // down with it.
         let icon = NSTextField(labelWithString: item.icon)
-        icon.font = NSFont(name: "Hack Nerd Font", size: 15 * s) ?? .systemFont(ofSize: 15 * s)
+        icon.font = NSFont(name: "JetBrainsMono NFM", size: 15 * s) ?? .systemFont(ofSize: 15 * s)
         icon.textColor = hexColor(opts.accent)
         icon.frame = NSRect(x: 12 * s, y: 7 * s, width: 24 * s, height: 20 * s)
         cell.addSubview(icon)

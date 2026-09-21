@@ -11,7 +11,10 @@ config-file = ?"~/.config/ghostty/theme.conf"
 config-file = ?"~/.config/ghostty/font.conf"
 
 # ── Font (Hack Nerd Font — user preference over Omarchy default) ─────────────
-font-family = "Hack Nerd Font"
+# JetBrainsMono, not Hack: starship's jetpack preset uses seven plain-Unicode
+# symbols (⌂ ✕ ⋈ ⌽ ⌾ ℂ ✶) that Hack Nerd Font does not carry, so they rendered
+# as tofu. JetBrainsMono covers all seven, and every menu icon besides.
+font-family = "JetBrainsMono NFM"
 font-style = Regular
 font-size = 16
 
@@ -20,6 +23,12 @@ window-padding-x = 14
 window-padding-y = 14
 window-padding-balance = true
 macos-titlebar-style = hidden
+# `hidden` drops the titlebar but keeps the window frame, which reads as a grey
+# outline around every Ghostty window while WezTerm -- which sets
+# window_decorations = 'RESIZE' -- has none. `none` removes the frame too, so
+# the two terminals look like each other and like Omarchy, where nothing wears
+# a border but the one JankyBorders draws.
+window-decoration = none
 background-opacity = 0.9
 confirm-close-surface = false
 resize-overlay = never

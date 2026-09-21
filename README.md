@@ -291,6 +291,14 @@ a switch regenerates three files that the configs *include*:
 
 ### Starship
 
+The prompt is starship's **jetpack** preset, shipped verbatim so it can be regenerated
+from upstream. It needs no tuning: every colour in it is a *named* one — `blue`,
+`bright-purple`, `white` — and the palette below shadows those names, so the preset themes
+itself without a single line of it referring to a colour value.
+
+Installing replaces `~/.config/starship.toml`, backing up whatever was there alongside the
+other configs. Delete the file to go back to your own prompt.
+
 Starship has no include mechanism, so this is the one place the rule bends: a theme switch
 edits your `starship.toml`. It confines itself to two marked blocks — a `palette` key and
 the palette table — and leaves every module exactly as it found it.

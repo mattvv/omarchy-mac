@@ -14,11 +14,11 @@ say "Installing dependencies"
 brew tap FelixKratz/formulae >/dev/null 2>&1 || true
 brew tap nikitabobko/tap     >/dev/null 2>&1 || true
 brew install --quiet sketchybar borders displayplacer blueutil || true
-brew install --cask --quiet aerospace ghostty font-hack-nerd-font || true
+brew install --cask --quiet aerospace ghostty font-jetbrains-mono-nerd-font || true
 
 say "Backing up existing config to $BACKUP"
 mkdir -p "$BACKUP"
-for f in "$HOME/.aerospace.toml" "$HOME/.wezterm.lua" \
+for f in "$HOME/.aerospace.toml" "$HOME/.wezterm.lua" "$HOME/.config/starship.toml" \
          "$HOME/.config/ghostty/config" "$HOME/.config/sketchybar/sketchybarrc"; do
   [ -f "$f" ] && cp "$f" "$BACKUP/" 2>/dev/null || true
 done
@@ -30,6 +30,11 @@ sed "s|__HOME__|$HOME|g" "$REPO/config/aerospace.toml" > "$HOME/.aerospace.toml"
 # keys outright -- so they are re-applied here, after the file is written.
 "$REPO/bin/aerospace_fork_config.sh" >/dev/null 2>&1 || true
 cp "$REPO/config/wezterm.lua"              "$HOME/.wezterm.lua"
+# Only if starship is actually installed -- writing a config for a prompt that
+# is not there is clutter, and the backup above keeps whatever was there.
+if command -v starship >/dev/null 2>&1; then
+  cp "$REPO/config/starship.toml"          "$HOME/.config/starship.toml"
+fi
 cp "$REPO/config/ghostty/config"           "$HOME/.config/ghostty/config"
 cp "$REPO/config/sketchybar/sketchybarrc"  "$HOME/.config/sketchybar/sketchybarrc"
 chmod +x "$HOME/.config/sketchybar/sketchybarrc"

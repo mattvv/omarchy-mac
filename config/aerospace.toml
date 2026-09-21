@@ -5,9 +5,7 @@
 
 after-startup-command = [
 'exec-and-forget sketchybar',
-# exec-and-forget runs through a shell, so the gradient's parens must be
-# escaped -- unescaped this is a bash syntax error and has never run.
-'exec-and-forget borders active_color=gradient\(top_left=0xff798186,bottom_right=0xffcacccc\) inactive_color=0xff1e1e1e width=4.0'
+'exec-and-forget __HOME__/.local/bin/borders.sh'
 ]
 
 # Notify Sketchybar about workspace change

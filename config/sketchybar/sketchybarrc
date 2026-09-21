@@ -19,10 +19,11 @@ DARKBG=${DARKBG:-0xff0c0e10}
 # Sourced after theme.sh so it can override the colour's alpha byte.
 BAR_POSITION=top
 BAR_ALPHA=ff
+ROUNDING=0
 source "$HOME/.local/state/omarchy-mac/bar.sh" 2>/dev/null
 BG="0x${BAR_ALPHA}${BG: -6}"
 
-FONT="Hack Nerd Font"
+FONT="JetBrainsMono NFM"
 
 # ── Bar: gripped to top, opaque, no border, no float ──────────────────────────
 sketchybar --bar \
@@ -50,7 +51,7 @@ sketchybar --default \
     icon.padding_right=4                 \
     label.padding_left=4                 \
     label.padding_right=6                \
-    background.corner_radius=5           \
+    background.corner_radius=${ROUNDING:-0} \
     background.height=24
 
 # ── LEFT: omarchy.menu ────────────────────────────────────────────────────────

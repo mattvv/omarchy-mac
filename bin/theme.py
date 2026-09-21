@@ -194,6 +194,7 @@ export ACCENT={sb(c.get("accent"))}
 export MUTED={sb(c.get("muted"))}
 export SEL={sb(c.get("selection"))}
 export WARN={sb(c.get("bright_red", c.get("red", "#de6145")))}
+export ROUNDING={int(c.get("rounding", 0) or 0)}
 export BORDER_ACTIVE="{act}"
 export BORDER_INACTIVE="{inact}"
 ''')
@@ -275,6 +276,16 @@ def write_starship(name, c):
     if not text.endswith("\n"):
         text += "\n"
     STARSHIP.write_text(text + "\n" + "\n".join(body) + "\n")
+
+
+def rounding(c) -> int:
+    """Corner radius for this theme's UI. Upstream expresses it as Hyprland
+    window rounding, which macOS does not let us set -- windows are rounded by
+    the OS. It lands on the surfaces we do own: the menu card and the bar."""
+    try:
+        return int(c.get("rounding", 0) or 0)
+    except ValueError:
+        return 0
 
 
 def write_zed(name, c):
@@ -489,17 +500,14 @@ def apply(name):
     (STATE / "current-theme").write_text(name + "\n")
     wallpaper(name)
 
-    act, inact = border_pair(c)
-    pkill, borders_bin = tool("pkill"), tool("borders")
-    if pkill and borders_bin:
-        subprocess.run([pkill, "-x", "borders"], capture_output=True)
+    borders_sh = Path(__file__).resolve().parent / "borders.sh"
+    if borders_sh.exists():
+        subprocess.run(["/bin/bash", str(borders_sh)], capture_output=True,
+                       stdin=subprocess.DEVNULL)
     # start_new_session: this often runs from a sketchybar click_script, and
     # the pkill below kills that script's parent. Without a new session the
     # replacement processes get torn down with it.
-        subprocess.Popen([borders_bin, f"active_color={act}", f"inactive_color={inact}",
-                          "width=4.0"],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         start_new_session=True)
+
     # `--reload` re-executes sketchybarrc in place, which re-sources theme.sh.
     # Killing and respawning races sketchybar's lock file: the replacement
     # bails with "could not acquire lock-file" and the old, stale-themed

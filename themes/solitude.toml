@@ -1,3 +1,7 @@
+# Upstream sets this in themes/solitude/hyprland.lua; every other theme
+# inherits hyprland's default of 0, i.e. square.
+rounding = "6"
+
 mode = "dark"
 
 accent = "#798186"

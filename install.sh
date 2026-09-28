@@ -13,6 +13,13 @@ command -v brew >/dev/null || { echo "Homebrew required: https://brew.sh"; exit 
 say "Installing dependencies"
 brew tap FelixKratz/formulae >/dev/null 2>&1 || true
 brew tap nikitabobko/tap     >/dev/null 2>&1 || true
+# Newer Homebrew refuses to load formulae from a tap until it is trusted, and
+# the `|| true` below would swallow that -- sketchybar, borders and aerospace
+# would silently not install. Older Homebrew has no `trust`; skip it there.
+if brew help trust >/dev/null 2>&1; then
+  brew trust felixkratz/formulae >/dev/null
+  brew trust nikitabobko/tap     >/dev/null
+fi
 brew install --quiet sketchybar borders displayplacer blueutil || true
 brew install --cask --quiet aerospace ghostty font-hack-nerd-font || true
 
@@ -37,8 +44,14 @@ chmod +x "$HOME"/.config/sketchybar/plugins-omarchy/*
 
 say "Installing theme switcher"
 mkdir -p "$HOME/.local/bin" "$HOME/.local/share/omarchy-mac"
-cp "$REPO/bin/theme.py" "$REPO/bin/theme_menu.sh" "$REPO/bin/bg_menu.sh" "$HOME/.local/bin/"
-chmod +x "$HOME/.local/bin/theme.py" "$HOME/.local/bin/theme_menu.sh" "$HOME/.local/bin/bg_menu.sh"
+# Everything in bin/, not just the theme scripts: menu.sh, keybindings_menu.sh
+# and theme.py import or exec their siblings (menu.py, zed.py, fonts.py, ...)
+# from ~/.local/bin.
+for f in "$REPO"/bin/*.sh "$REPO"/bin/*.py; do
+  cp "$f" "$HOME/.local/bin/"
+  chmod +x "$HOME/.local/bin/$(basename "$f")"
+done
+cp "$REPO/config/menu.jsonc" "$HOME/.local/share/omarchy-mac/menu.jsonc"
 rm -rf "$HOME/.local/share/omarchy-mac/themes"
 cp -R "$REPO/themes" "$HOME/.local/share/omarchy-mac/themes"
 
@@ -113,7 +126,13 @@ fi
 pkill -x borders 2>/dev/null || true
 (borders active_color=gradient\(top_left=0xff798186,bottom_right=0xffcacccc\) \
          inactive_color=0xff1e1e1e width=4.0 >/dev/null 2>&1 &)
-open -a AeroSpace 2>/dev/null || true
+# Freshly installed casks aren't in LaunchServices yet, so `open -a` (here and
+# in every aerospace.toml app binding) can't find them. Register them first.
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+for app in /Applications/{AeroSpace,Ghostty,Raycast,Zed,Spotify}.app; do
+  [ -d "$app" ] && "$LSREGISTER" -f "$app" 2>/dev/null || true
+done
+open /Applications/AeroSpace.app 2>/dev/null || true
 
 cat <<'DONE'
 
